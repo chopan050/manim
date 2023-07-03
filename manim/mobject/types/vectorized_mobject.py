@@ -884,25 +884,40 @@ class VMobject(Mobject):
         assert mode in ["jagged", "smooth"]
         nppcc = self.n_points_per_cubic_curve
         for submob in self.family_members_with_points():
-            subpaths = submob.get_subpaths()
-            submob.clear_points()
-            # A subpath can be composed of several bezier curves.
-            for subpath in subpaths:
-                # This will retrieve the anchors of the subpath, by selecting every n element in the array subpath
-                # The append is needed as the last element is not reached when slicing with numpy.
-                anchors = np.append(subpath[::nppcc], subpath[-1:], 0)
+            start_anchors = submob.points[::nppcc]
+            end_anchors = submob.points[nppcc - 1 :: nppcc]
+
+            subpath_divisions = (
+                np.abs(end_anchors[:-1] - start_anchors[1:])
+                > self.tolerance_for_point_equality
+            ).any(axis=1)
+            subpath_divisions = np.nonzero(subpath_divisions)[0]
+
+            subpath_start_indices = np.empty(subpath_divisions.size + 1, dtype=int)
+            subpath_start_indices[0] = 0
+            subpath_start_indices[1:] = subpath_divisions + 1
+
+            subpath_end_indices = np.empty(subpath_divisions.size + 1, dtype=int)
+            subpath_end_indices[:-1] = subpath_divisions
+            subpath_end_indices[-1] = start_anchors.shape[0] - 1
+
+            # A subpath can be composed of several Bezier curves.
+            for start_i, end_i in zip(subpath_start_indices, subpath_end_indices):
                 if mode == "smooth":
+                    anchors = np.empty((end_i - start_i + 2, start_anchors.shape[1]))
+                    anchors[: end_i - start_i + 1] = start_anchors[start_i : end_i + 1]
+                    anchors[end_i - start_i + 1] = end_anchors[end_i]
                     h1, h2 = get_smooth_handle_points(anchors)
                 elif mode == "jagged":
                     # The following will make the handles aligned with the anchors, thus making the bezier curve a segment
-                    a1 = anchors[:-1]
-                    a2 = anchors[1:]
+                    a1 = start_anchors[start_i : end_i + 1]
+                    a2 = end_anchors[start_i : end_i + 1]
                     h1 = interpolate(a1, a2, 1.0 / 3)
                     h2 = interpolate(a1, a2, 2.0 / 3)
-                new_subpath = np.array(subpath)
-                new_subpath[1::nppcc] = h1
-                new_subpath[2::nppcc] = h2
-                submob.append_points(new_subpath)
+
+                # Set handles in this subpath
+                submob.points[nppcc * start_i + 1 : nppcc * (end_i + 1) : nppcc] = h1
+                submob.points[nppcc * start_i + 2 : nppcc * (end_i + 1) : nppcc] = h2
         return self
 
     def make_smooth(self):
