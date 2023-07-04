@@ -887,11 +887,11 @@ class VMobject(Mobject):
             start_anchors = submob.points[::nppcc]
             end_anchors = submob.points[nppcc - 1 :: nppcc]
 
-            subpath_divisions = (
-                np.abs(end_anchors[:-1] - start_anchors[1:])
-                > self.tolerance_for_point_equality
-            ).any(axis=1)
-            subpath_divisions = np.nonzero(subpath_divisions)[0]
+            is_not_close = np.abs(
+                end_anchors[:-1] - start_anchors[1:]
+            ) > self.tolerance_for_point_equality + 1e-5 * np.abs(end_anchors[:-1])
+            is_not_close = is_not_close[:, 0] | is_not_close[:, 1] | is_not_close[:, 2]
+            subpath_divisions = np.arange(is_not_close.size)[is_not_close]
 
             subpath_start_indices = np.empty(subpath_divisions.size + 1, dtype=int)
             subpath_start_indices[0] = 0

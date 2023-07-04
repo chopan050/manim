@@ -14,7 +14,7 @@ from manim import config
 from manim.mobject.graphing.scale import LinearBase, _ScaleBase
 from manim.mobject.opengl.opengl_compatibility import ConvertToOpenGL
 from manim.mobject.types.vectorized_mobject import VMobject
-from manim.utils.bezier import interpolate
+from manim.utils.bezier import get_smooth_handle_points, interpolate
 from manim.utils.color import YELLOW
 
 
@@ -185,10 +185,10 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
         self.n_beziers_per_path = np.ceil(
             (self.t_upper_bounds - self.t_lower_bounds) / self.t_step
         ).astype(int)
-        self.subpath_end_indices = np.add.accumulate(self.n_beziers_per_path) - 1
-        self.total_n_beziers = (
-            self.subpath_end_indices[-1] + 1
-        )  # This avoids using np.sum, which is more expensive
+        self.acc_n_beziers = np.add.accumulate(self.n_beziers_per_path)
+        # This avoids using np.sum which is more expensive, because we need
+        # the accumulated number of Bezier curves anyways
+        self.total_n_beziers = self.acc_n_beziers[-1]
 
         # Calculate ts to be passed to self.function later
         i = 0
@@ -219,9 +219,9 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
         # Just in case there's a single start anchor, this
         # transforms it into an array containing the anchor
         start_anchors = start_anchors.reshape(-1, 3)
-        end_anchors = np.empty_like(start_anchors)
+        end_anchors = np.empty((self.total_n_beziers, 3))
         end_anchors[:-1] = start_anchors[1:]
-        end_anchors[self.subpath_end_indices] = subpath_end_points
+        end_anchors[self.acc_n_beziers - 1] = subpath_end_points
 
         # Set anchors as points in ParametricFunction
         nppcc = self.n_points_per_cubic_curve
@@ -232,9 +232,22 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
         # Calculate handles and set them as points in
         # ParametricFunction
         if self.use_smoothing:
-            # Smooth curve: Handles will be set in VMobject.make_smooth()
+            # Smooth curve: Set handles such that the resulting curve is smooth
+            # TODO: the following "to-do" might not apply anymore since
+            # VMobject.make_smooth was skipped here
             # TODO: not in line with upstream, approx_smooth does not exist
-            self.make_smooth()
+            start_i = 0
+            for n_beziers in self.n_beziers_per_path:
+                end_i = start_i + n_beziers
+                subpath_anchors = np.empty((n_beziers + 1, 3))
+                subpath_anchors[:-1] = start_anchors[start_i:end_i]
+                subpath_anchors[-1] = end_anchors[end_i - 1]
+                subpath_handles = get_smooth_handle_points(subpath_anchors)
+                for i in range(1, nppcc - 1):
+                    self.points[
+                        nppcc * start_i + i : nppcc * end_i + i : nppcc
+                    ] = subpath_handles[i - 1]
+                start_i = end_i
         else:
             # Jagged curve: Create handles which lay on the segment
             for i in range(1, nppcc - 1):
