@@ -371,8 +371,8 @@ class NumberLine(Line):
         scalar = number.ndim == 0
         number = self.scaling.inverse_function(number)
         alphas = (number - self.x_range[0]) / (self.x_range[1] - self.x_range[0])
-        alphas = float(alphas) if scalar else np.vstack(alphas)
-        val = interpolate(self.get_start(), self.get_end(), alphas)
+        alphas = float(alphas) if scalar else alphas.reshape(-1, 1)
+        val = interpolate(self.points[0], self.points[-1], alphas)
         return val
 
     def point_to_number(self, point: Sequence[float]) -> float:

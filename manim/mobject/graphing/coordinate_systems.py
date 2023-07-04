@@ -1872,6 +1872,7 @@ class Axes(VGroup, CoordinateSystem, metaclass=ConvertToOpenGL):
             for axis in self.axes
         ]
 
+        print("Shitfing", -self.coords_to_point(*lines_center_point))
         self.shift(-self.coords_to_point(*lines_center_point))
 
     @staticmethod
@@ -2010,7 +2011,11 @@ class Axes(VGroup, CoordinateSystem, metaclass=ConvertToOpenGL):
             # original implementation of coords_to_point for performance in the legacy case
             result = np.array(origin)
             for axis, number in zip(self.get_axes(), coords):
-                result += axis.number_to_point(number) - origin
+                print(number)
+                point = axis.number_to_point(number) - origin
+                print(point)
+                result += point
+            print("Result:", result)
             return result
         # if called like coords_to_point([1, 2, 3],[4, 5, 6]), then it shall be used as [1,4], [2,5], [3,6] and return the points as ([x_0,x_1],[y_0,y_1],[z_0,z_1])
         elif coords.ndim == 2:
@@ -2018,16 +2023,13 @@ class Axes(VGroup, CoordinateSystem, metaclass=ConvertToOpenGL):
             transposed = True
         # if called like coords_to_point(np.array([[1, 2, 3],[4,5,6]])), reduce dimension by 1
         elif coords.ndim == 3:
-            coords = np.squeeze(coords)
+            coords = coords[0]
         # else the coords is a Nx1, Nx2, Nx3 array so we do not need to modify the array
 
-        points = origin + np.sum(
-            [
-                axis.number_to_point(number) - origin
-                for number, axis in zip(coords.T, self.get_axes())
-            ],
-            axis=0,
-        )
+        points = np.empty((len(coords), 3))
+        points[:] = origin
+        for axis, number in zip(self.axes.submobjects, coords.T):
+            points += axis.number_to_point(number) - origin
         # if called with single coord, then return a point instead of a list of points
         if transposed:
             return points.T

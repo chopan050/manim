@@ -235,7 +235,7 @@ def quadratic_bezier_remap(
 
 # Linear interpolation variants
 def interpolate(start: np.ndarray, end: np.ndarray, alpha: float) -> np.ndarray:
-    return (1 - alpha) * start + alpha * end
+    return start + alpha * (end - start)
 
 
 def integer_interpolate(
