@@ -133,9 +133,9 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
         # increases Mobject.copy's runtime a lot: it messes up with deepcopy.
         # But why?
         if coords_to_point is None:
-            self.coords_to_point = None
+            self.coords_to_point = lambda *coords: coords
         else:
-            self.coords_to_point = lambda coords: coords_to_point(coords)
+            self.coords_to_point = lambda *coords: coords_to_point(*coords)
         self.t_min, self.t_max, self.t_step = t_range
         self.set_t_values()
 
@@ -148,7 +148,13 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
         """Evaluates :attr:`function` f(t) on a given value of t,
         and positions the obtained coordinates in the scene with
         :attr:`coords_to_point`."""
-        return self.coords_to_point(self.function(t))
+        scaled_t = self.scaling.function(np.asarray(t))
+        ft = np.asarray(self.function(scaled_t))
+        if ft.ndim == 1:
+            point = self.coords_to_point(*ft)
+        else:
+            point = self.coords_to_point(ft.T)
+        return point
 
     def set_t_values(self):
         """Calculates an array of t values to evaluate on ParametricFunction.function f(t)."""
@@ -216,9 +222,8 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
             start_anchors = np.array([self.function(t) for t in self.scaled_t_range])
             subpath_end_points = [self.function(t) for t in self.scaled_t_upper_bounds]
 
-        if self.coords_to_point is not None:
-            start_anchors = self.coords_to_point(start_anchors)
-            subpath_end_points = self.coords_to_point(subpath_end_points)
+        start_anchors = self.coords_to_point(start_anchors)
+        subpath_end_points = self.coords_to_point(subpath_end_points)
 
         # Just in case there's a single start anchor, this
         # transforms it into an array containing the anchor

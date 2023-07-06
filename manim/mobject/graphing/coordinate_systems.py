@@ -947,7 +947,7 @@ class CoordinateSystem:
         """
 
         if hasattr(graph, "underlying_function"):
-            return graph.function(x)
+            return graph.get_point_from_function(x)
         else:
             alpha = binary_search(
                 function=lambda a: self.point_to_coords(graph.point_from_proportion(a))[
@@ -1306,18 +1306,19 @@ class CoordinateSystem:
 
         if bounded_graph is None:
             points = (
-                [self.c2p(a), graph.function(a)]
+                [self.c2p(a), graph.get_point_from_function(a)]
                 + [p for p in graph.points if a <= self.p2c(p)[0] <= b]
-                + [graph.function(b), self.c2p(b)]
+                + [graph.get_point_from_function(b), self.c2p(b)]
             )
         else:
             graph_points, bounded_graph_points = (
-                [g.function(a)]
+                [g.get_point_from_function(a)]
                 + [p for p in g.points if a <= self.p2c(p)[0] <= b]
-                + [g.function(b)]
+                + [g.get_point_from_function(b)]
                 for g in (graph, bounded_graph)
             )
             points = graph_points + bounded_graph_points[::-1]
+
         return Polygon(*points, **kwargs).set_opacity(opacity).set_color(color)
 
     def angle_of_tangent(
