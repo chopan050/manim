@@ -115,9 +115,7 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
         discontinuities: Iterable[float] | None = None,
         use_smoothing: bool = True,
         use_vectorized: bool = False,
-        coords_to_point: Callable[
-            Sequence[float], [float, float, float]
-        ] = lambda coords: coords,
+        coords_to_point: Callable[Sequence[float], [float, float, float]] = None,
         **kwargs,
     ):
         self.function = function
@@ -130,9 +128,14 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
         self.discontinuities = discontinuities
         self.use_smoothing = use_smoothing
         self.use_vectorized = use_vectorized
-        self.coords_to_point = (
-            coords_to_point  # Default value is identity (does nothing)
-        )
+        # TODO: For some reason, directly using
+        # self.coords_to_point = coords_to_point
+        # increases Mobject.copy's runtime a lot: it messes up with deepcopy.
+        # But why?
+        if coords_to_point is None:
+            self.coords_to_point = None
+        else:
+            self.coords_to_point = lambda coords: coords_to_point(coords)
         self.t_min, self.t_max, self.t_step = t_range
         self.set_t_values()
 
@@ -192,29 +195,30 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
 
         # Calculate ts to be passed to self.function later
         i = 0
-        self.t_range = np.empty(self.total_n_beziers)
+        self.scaled_t_range = np.empty(self.total_n_beziers)
         for lower_t, upper_t, n_beziers in zip(
             self.t_lower_bounds, self.t_upper_bounds, self.n_beziers_per_path
         ):
-            self.t_range[i : i + n_beziers] = self.scaling.function(
+            self.scaled_t_range[i : i + n_beziers] = self.scaling.function(
                 np.arange(lower_t, upper_t, self.t_step)
             )
             i += n_beziers
 
-        self.subpath_end_t = self.scaling.function(self.t_upper_bounds)
+        self.scaled_t_upper_bounds = self.scaling.function(self.t_upper_bounds)
 
     def generate_points(self):
         # Calculate start and end anchors for every Bezier curve
         if self.use_vectorized:
             # ndarray.T is more efficient than np.transpose for these purposes
-            start_anchors = self.function(self.t_range).T
-            subpath_end_points = self.function(self.subpath_end_t).T
+            start_anchors = self.function(self.scaled_t_range).T
+            subpath_end_points = self.function(self.scaled_t_upper_bounds).T
         else:
-            start_anchors = np.array([self.function(t) for t in self.t_range])
-            subpath_end_points = [self.function(t) for t in self.subpath_end_t]
+            start_anchors = np.array([self.function(t) for t in self.scaled_t_range])
+            subpath_end_points = [self.function(t) for t in self.scaled_t_upper_bounds]
 
-        start_anchors = self.coords_to_point(start_anchors)
-        subpath_end_points = self.coords_to_point(subpath_end_points)
+        if self.coords_to_point is not None:
+            start_anchors = self.coords_to_point(start_anchors)
+            subpath_end_points = self.coords_to_point(subpath_end_points)
 
         # Just in case there's a single start anchor, this
         # transforms it into an array containing the anchor
