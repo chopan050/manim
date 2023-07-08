@@ -17,7 +17,7 @@ __all__ = [
 import numpy as np
 
 from manim.constants import ORIGIN, UP
-from manim.utils.space_ops import get_unit_normal
+from manim.utils.space_ops import get_unit_normal, norm
 
 
 def get_3d_vmob_gradient_start_and_end_points(vmob):
@@ -37,13 +37,13 @@ def get_3d_vmob_end_corner_index(vmob):
 
 def get_3d_vmob_start_corner(vmob):
     if vmob.get_num_points() == 0:
-        return np.array(ORIGIN)
+        return ORIGIN
     return vmob.points[get_3d_vmob_start_corner_index(vmob)]
 
 
 def get_3d_vmob_end_corner(vmob):
     if vmob.get_num_points() == 0:
-        return np.array(ORIGIN)
+        return ORIGIN
     return vmob.points[get_3d_vmob_end_corner_index(vmob)]
 
 
@@ -58,7 +58,7 @@ def get_3d_vmob_unit_normal(vmob, point_index):
         vmob.points[ip3] - vmob.points[i],
         vmob.points[im3] - vmob.points[i],
     )
-    if np.linalg.norm(unit_normal) == 0:
+    if norm(unit_normal) == 0:
         return np.array(UP)
     return unit_normal
 

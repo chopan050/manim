@@ -542,7 +542,7 @@ def midpoint(
     Union[float, np.ndarray]
         The midpoint of the points
     """
-    return center_of_mass([point1, point2])
+    return (point1 + point2) / 2
 
 
 def line_intersection(
