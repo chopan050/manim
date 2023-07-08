@@ -158,6 +158,18 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
 
     def set_t_values(self):
         """Calculates an array of t values to evaluate on ParametricFunction.function f(t)."""
+        if self.t_min >= self.t_max:
+            for attr in (
+                "t_lower_bounds",
+                "t_upper_bounds",
+                "n_beziers_per_path",
+                "acc_n_beziers",
+                "scaled_t_range",
+                "scaled_t_upper_bounds",
+            ):
+                setattr(self, attr, np.empty(0))
+            self.total_n_beziers = 0
+            return
 
         # Get t boundaries for subpaths
         if self.discontinuities is not None:
@@ -185,6 +197,16 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
                 subpaths_exist = self.t_upper_bounds - self.t_lower_bounds > 1e-6
                 self.t_lower_bounds = self.t_lower_bounds[subpaths_exist]
                 self.t_upper_bounds = self.t_upper_bounds[subpaths_exist]
+                if self.t_lower_bounds.size == 0:
+                    for attr in (
+                        "n_beziers_per_path",
+                        "acc_n_beziers",
+                        "scaled_t_range",
+                        "scaled_t_upper_bounds",
+                    ):
+                        setattr(self, attr, np.empty(0))
+                    self.total_n_beziers = 0
+                    return
 
         else:
             self.t_lower_bounds = np.array([self.t_min])
@@ -213,6 +235,9 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
         self.scaled_t_upper_bounds = self.scaling.function(self.t_upper_bounds)
 
     def generate_points(self):
+        if self.t_lower_bounds.size == 0:
+            return
+
         # Calculate start and end anchors for every Bezier curve
         if self.use_vectorized:
             # ndarray.T is more efficient than np.transpose for these purposes
