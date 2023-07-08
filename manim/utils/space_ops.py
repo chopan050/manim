@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 __all__ = [
+    "norm_squared",
+    "norm",
+    "dot_product",
+    "cross_product",
     "quaternion_mult",
     "quaternion_from_angle_axis",
     "angle_axis_from_quaternion",
@@ -49,8 +53,26 @@ from ..constants import DOWN, OUT, PI, RIGHT, TAU, UP, RendererType
 from ..utils.iterables import adjacent_pairs
 
 
-def norm_squared(v: float) -> float:
-    return np.dot(v, v)
+def norm_squared(v: np.ndarray) -> float:
+    return v[0] * v[0] + v[1] * v[1] + v[2] * v[2]
+
+
+def norm(v: np.ndarray) -> np.ndarray:
+    return math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+
+
+def dot_product(v1: np.ndarray, v2: np.ndarray) -> float:
+    return v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]
+
+
+def cross_product(v1: np.ndarray, v2: np.ndarray) -> np.ndarray:
+    return np.array(
+        [
+            v1[1] * v2[2] - v1[2] * v2[1],
+            v1[2] * v2[0] - v1[0] * v2[2],
+            v1[0] * v2[1] - v1[1] * v1[0],
+        ]
+    )
 
 
 # Quaternions
@@ -195,9 +217,11 @@ def rotate_vector(
 
     if len(vector) > 3:
         raise ValueError("Vector must have the correct dimensions.")
+
+    rot = rotation_matrix(angle, axis)
     if len(vector) == 2:
-        vector = np.append(vector, 0)
-    return rotation_matrix(angle, axis) @ vector
+        return rot[:, :2] @ vector
+    return rot @ vector
 
 
 def thick_diagonal(dim: int, thickness=2) -> np.ndarray:
@@ -291,12 +315,12 @@ def z_to_vector(vector: np.ndarray) -> np.ndarray:
     (normalized) vector provided as an argument
     """
     axis_z = normalize(vector)
-    axis_y = normalize(np.cross(axis_z, RIGHT))
-    axis_x = np.cross(axis_y, axis_z)
-    if np.linalg.norm(axis_y) == 0:
+    axis_y = normalize(cross_product(axis_z, RIGHT))
+    axis_x = cross_product(axis_y, axis_z)
+    if norm(axis_y) == 0:
         # the vector passed just so happened to be in the x direction.
-        axis_x = normalize(np.cross(UP, axis_z))
-        axis_y = -np.cross(axis_x, axis_z)
+        axis_x = normalize(cross_product(UP, axis_z))
+        axis_y = -cross_product(axis_x, axis_z)
 
     return np.array([axis_x, axis_y, axis_z]).T
 
@@ -342,15 +366,15 @@ def angle_between_vectors(v1: np.ndarray, v2: np.ndarray) -> float:
     """
 
     return 2 * np.arctan2(
-        np.linalg.norm(normalize(v1) - normalize(v2)),
-        np.linalg.norm(normalize(v1) + normalize(v2)),
+        norm(normalize(v1) - normalize(v2)),
+        norm(normalize(v1) + normalize(v2)),
     )
 
 
 def normalize(vect: np.ndarray | tuple[float], fall_back=None) -> np.ndarray:
-    norm = np.linalg.norm(vect)
-    if norm > 0:
-        return np.array(vect) / norm
+    vect_norm = norm(vect)
+    if vect_norm > 0:
+        return np.array(vect) / vect_norm
     else:
         return fall_back or np.zeros(len(vect))
 
@@ -394,16 +418,23 @@ def get_unit_normal(v1: np.ndarray, v2: np.ndarray, tol: float = 1e-6) -> np.nda
     np.ndarray
         The normal of the two vectors.
     """
-    v1, v2 = (normalize(i) for i in (v1, v2))
-    cp = np.cross(v1, v2)
-    cp_norm = np.linalg.norm(cp)
+    v1 = normalize(v1)
+    v2 = normalize(v2)
+    cp = cross_product(v1, v2)
+    cp_norm = norm(cp)
     if cp_norm < tol:
         # Vectors align, so find a normal to them in the plane shared with the z-axis
-        cp = np.cross(np.cross(v1, OUT), v1)
-        cp_norm = np.linalg.norm(cp)
+        # Let v = v1 = v2
+        # 1. Calculate w = v x OUT:
+        # [v[0], v[1], v[2]] x [0, 0, 1] = [v[1], -v[0], 0]
+        # 2. Calculate cp = w x v:
+        # [v[1], -v[0], 0] x [v[0], v[1], v[2]] = [-v[0]*v[2], -v[1]*v[2], v[0]*v[0] + v[1]*v[1]]
+        v = v1
+        cp = np.array([-v[0] * v[2], -v[1] * v[2], v[0] * v[0] + v[1] * v[1]])
+        cp_norm = norm(cp)
         if cp_norm < tol:
             return DOWN
-    return normalize(cp)
+    return cp / cp_norm
 
 
 ###
@@ -547,8 +578,8 @@ def line_intersection(
         np.pad(np.array(i)[:, :2], ((0, 0), (0, 1)), constant_values=1)
         for i in (line1, line2)
     )
-    line1, line2 = (np.cross(*i) for i in padded)
-    x, y, z = np.cross(line1, line2)
+    line1, line2 = (cross_product(*i) for i in padded)
+    x, y, z = cross_product(line1, line2)
 
     if z == 0:
         raise ValueError(
@@ -576,9 +607,9 @@ def find_intersection(
     result = []
 
     for p0, v0, p1, v1 in zip(*[p0s, v0s, p1s, v1s]):
-        normal = np.cross(v1, np.cross(v0, v1))
-        denom = max(np.dot(v0, normal), threshold)
-        result += [p0 + np.dot(p1 - p0, normal) / denom * v0]
+        normal = cross_product(v1, cross_product(v0, v1))
+        denom = max(dot_product(v0, normal), threshold)
+        result += [p0 + dot_product(p1 - p0, normal) / denom * v0]
     return result
 
 
@@ -742,10 +773,10 @@ def cartesian_to_spherical(vec: Sequence[float]) -> np.ndarray:
     vec
         A numpy array ``[x, y, z]``.
     """
-    norm = np.linalg.norm(vec)
-    if norm == 0:
+    vect_norm = norm(vec)
+    if vect_norm == 0:
         return 0, 0, 0
-    r = norm
+    r = vect_norm
     phi = np.arccos(vec[2] / r)
     theta = np.arctan2(vec[1], vec[0])
     return np.array([r, theta, phi])
@@ -801,6 +832,6 @@ def perpendicular_bisector(
     """
     p1 = line[0]
     p2 = line[1]
-    direction = np.cross(p1 - p2, norm_vector)
+    direction = cross_product(p1 - p2, norm_vector)
     m = midpoint(p1, p2)
     return [m + direction, m - direction]

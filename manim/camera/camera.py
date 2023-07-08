@@ -669,22 +669,49 @@ class Camera:
         Camera
             Camera object after setting cairo_context_path
         """
-        points = self.transform_points_pre_display(vmobject, vmobject.points)
+        nppcc = vmobject.n_points_per_cubic_curve
+        n_points = nppcc * vmobject.get_num_curves()
+        if n_points == 0:
+            return
+
+        points = vmobject.points[:n_points]
+        points = self.transform_points_pre_display(vmobject, points)
         # TODO, shouldn't this be handled in transform_points_pre_display?
         # points = points - self.get_frame_center()
         if len(points) == 0:
             return
 
+        points_2d = points[:, :2]
+        start_anchors = points_2d[0::nppcc]
+        handles_1 = points_2d[1::nppcc]
+        handles_2 = points_2d[2::nppcc]
+        end_anchors = points_2d[nppcc - 1 :: nppcc]
+
+        is_not_close = np.abs(
+            end_anchors[:-1] - start_anchors[1:]
+        ) > vmobject.tolerance_for_point_equality + 1e-5 * np.abs(end_anchors[:-1])
+        is_not_close = is_not_close[:, 0] | is_not_close[:, 1]
+        subpath_divisions = np.arange(is_not_close.size)[is_not_close]
+
+        subpath_start_indices = np.empty(subpath_divisions.size + 1, dtype=int)
+        subpath_start_indices[0] = 0
+        subpath_start_indices[1:] = subpath_divisions + 1
+
+        subpath_end_indices = np.empty(subpath_divisions.size + 1, dtype=int)
+        subpath_end_indices[:-1] = subpath_divisions
+        subpath_end_indices[-1] = start_anchors.shape[0] - 1
+
         ctx.new_path()
-        subpaths = vmobject.gen_subpaths_from_points_2d(points)
-        for subpath in subpaths:
-            quads = vmobject.gen_cubic_bezier_tuples_from_points(subpath)
+        for start_i, end_i in zip(subpath_start_indices, subpath_end_indices):
             ctx.new_sub_path()
-            start = subpath[0]
-            ctx.move_to(*start[:2])
-            for _p0, p1, p2, p3 in quads:
-                ctx.curve_to(*p1[:2], *p2[:2], *p3[:2])
-            if vmobject.consider_points_equals_2d(subpath[0], subpath[-1]):
+            start = start_anchors[start_i]
+            ctx.move_to(*start)
+            for i in range(start_i, end_i + 1):
+                h1 = handles_1[i]
+                h2 = handles_2[i]
+                end = end_anchors[i]
+                ctx.curve_to(*h1, *h2, *end)
+            if vmobject.consider_points_equals_2d(start, end):
                 ctx.close_path()
         return self
 
@@ -1070,7 +1097,8 @@ class Camera:
 
         # Subclasses (like ThreeDCamera) may want to
         # adjust points further before they're shown
-        if not np.all(np.isfinite(points)):
+        points = np.asarray(points)
+        if not np.isfinite(np.add.accumulate(points.reshape(-1))[-1]):
             # TODO, print some kind of warning about
             # mobject having invalid points?
             points = np.zeros((1, 3))
