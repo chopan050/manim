@@ -14,8 +14,6 @@ __all__ = [
 ]
 
 
-import numpy as np
-
 from manim.constants import ORIGIN, UP
 from manim.utils.space_ops import get_unit_normal, norm
 
@@ -50,7 +48,7 @@ def get_3d_vmob_end_corner(vmob):
 def get_3d_vmob_unit_normal(vmob, point_index):
     n_points = vmob.get_num_points()
     if len(vmob.get_anchors()) <= 2:
-        return np.array(UP)
+        return UP
     i = point_index
     im3 = i - 3 if i > 2 else (n_points - 4)
     ip3 = i + 3 if i < (n_points - 3) else 3
@@ -59,7 +57,7 @@ def get_3d_vmob_unit_normal(vmob, point_index):
         vmob.points[im3] - vmob.points[i],
     )
     if norm(unit_normal) == 0:
-        return np.array(UP)
+        return UP
     return unit_normal
 
 
