@@ -17,7 +17,7 @@ import numpy as np
 from manim import config
 from manim.constants import *
 from manim.mobject.geometry.line import Line
-from manim.mobject.graphing.scale import LinearBase, _ScaleBase
+from manim.mobject.graphing.scale import UnitLinearBase, _ScaleBase
 from manim.mobject.text.numbers import DecimalNumber
 from manim.mobject.text.tex_mobject import MathTex, Tex
 from manim.mobject.types.vectorized_mobject import VGroup, VMobject
@@ -63,7 +63,7 @@ class NumberLine(Line):
         Whether to add numbers to the tick marks. The number of decimal places is determined
         by the step size, this default can be overridden by ``decimal_number_config``.
     scaling
-        The way the ``x_range`` is value is scaled, i.e. :class:`~.LogBase` for a logarithmic numberline. Defaults to :class:`~.LinearBase`.
+        The way the ``x_range`` is value is scaled, i.e. :class:`~.LogBase` for a logarithmic numberline. Defaults to :class:`~.UnitLinearBase`.
     font_size
         The size of the label mobjects. Defaults to 36.
     label_direction
@@ -156,7 +156,7 @@ class NumberLine(Line):
         font_size: float = 36,
         label_direction: Sequence[float] = DOWN,
         label_constructor: VMobject = MathTex,
-        scaling: _ScaleBase = LinearBase(),
+        scaling: _ScaleBase = UnitLinearBase(),
         line_to_number_buff: float = MED_SMALL_BUFF,
         decimal_number_config: dict | None = None,
         numbers_to_exclude: Iterable[float] | None = None,
@@ -189,6 +189,7 @@ class NumberLine(Line):
         self.x_min, self.x_max, self.x_step = scaling.function(self.x_range)
         self.x_min_no_tips = self.x_min
         self.x_max_no_tips = self.x_max
+        self.div = 1 / (self.x_max - self.x_min)
         self.length = length
         self.unit_size = unit_size
         # ticks
@@ -293,6 +294,7 @@ class NumberLine(Line):
             self.x_max - self.x_min
         )
         self.x_max_no_tips = self.x_min + new_end_proportion * (self.x_max - self.x_min)
+        self.div = 1 / (self.x_max_no_tips - self.x_min_no_tips)
 
         return self
 
@@ -408,12 +410,9 @@ class NumberLine(Line):
         number = np.asarray(number)
         scalar = number.ndim == 0
         number = self.scaling.inverse_function(number)
-        alphas = (number - self.x_min_no_tips) / (
-            self.x_max_no_tips - self.x_min_no_tips
-        )
+        alphas = (number - self.x_min_no_tips) * self.div
         alphas = float(alphas) if scalar else alphas.reshape(-1, 1)
-        val = interpolate(self.points[0], self.points[-1], alphas)
-        return val
+        return interpolate(self.points[0], self.points[-1], alphas)
 
     def point_to_number(self, point: Sequence[float]) -> float:
         """Accepts a point with respect to the scene and returns
