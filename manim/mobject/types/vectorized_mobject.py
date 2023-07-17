@@ -15,6 +15,7 @@ __all__ = [
 import itertools as it
 import sys
 import typing
+from bisect import bisect_left
 from typing import Callable, Optional, Sequence, Union
 
 import colour
@@ -41,7 +42,6 @@ from ...utils.bezier import (
 from ...utils.color import BLACK, WHITE, color_to_rgba
 from ...utils.deprecation import deprecated
 from ...utils.iterables import make_even, resize_array, stretch_array_to_length, tuplify
-from ...utils.simple_functions import binary_search
 from ...utils.space_ops import rotate_vector, shoelace_direction
 
 # TODO
@@ -671,7 +671,7 @@ class VMobject(Mobject):
     def append_points(self, new_points):
         # TODO, check that number new points is a multiple of 4?
         # or else that if len(self.points) % 4 == 1, then
-        # len(self.points) % 4 == 3?
+        # len(new_points) % 4 == 3?
         n = len(self.points)
         points = np.empty((n + len(new_points), self.dim))
         points[:n] = self.points
@@ -889,7 +889,6 @@ class VMobject(Mobject):
         :class:`VMobject`
             ``self``
         """
-        nppcc = self.n_points_per_cubic_curve
         points = np.asarray(points)
         start_anchors = points[:-1]
         end_anchors = points[1:]
@@ -930,8 +929,10 @@ class VMobject(Mobject):
                 # thus making the Bézier curves straight lines
                 starts = submob.get_start_anchors()
                 ends = submob.get_end_anchors()
-                for a in self.bezier_alphas:
-                    submob.points[1::nppcc] = interpolate(starts, ends, a)
+                for i in range(1, nppcc - 1):
+                    submob.points[i::nppcc] = interpolate(
+                        starts, ends, self.bezier_alphas[i]
+                    )
 
             elif mode == "smooth":
                 # Divide into subpaths and for each subpath compute smooth handles.
@@ -1022,8 +1023,11 @@ class VMobject(Mobject):
     ) -> bool | np.ndarray:
         """Determine if two points are close enough to be considered equal.
 
-        This function reimplements np.allclose, because repeated calling of
-        np.allclose for only 2 points is inefficient.
+        This function reimplements ``numpy.allclose``, because repeated calling of
+        ``np.allclose`` for only 2 points is inefficient. The tolerance is governed
+        by the :attr:`.tolerance_for_point_equality` attribute.
+
+        Parameters
         ----------
         p0
             first point
@@ -1051,6 +1055,7 @@ class VMobject(Mobject):
 
         # Case 2: multiple pairs of points
         is_close = abs(p1 - p0) <= atol
+        # This is actually more efficient than np.all(is_close, axis=1)
         return is_close[:, 0] & is_close[:, 1] & is_close[:, 2]
 
     def consider_points_equals_2d(
@@ -1091,85 +1096,8 @@ class VMobject(Mobject):
         p0 = p0.reshape(-1, self.dim)[:, :2]
         p1 = p1.reshape(-1, self.dim)[:, :2]
         is_close = abs(p1 - p0) <= atol
+        # This is actually more efficient than np.all(is_close, axis=1)
         return is_close[:, 0] & is_close[:, 1]
-
-    def consider_points_different(
-        self,
-        p0: Iterable[float] | Iterable[Iterable[float]],
-        p1: Iterable[float] | Iterable[Iterable[float]],
-    ) -> bool | np.ndarray:
-        """Determine if two points are distant enough to be considered different.
-
-        This function reimplements np.allclose, because repeated calling of
-        np.allclose for only 2 points is inefficient.
-        ----------
-        p0
-            first point
-        p1
-            second point
-
-        Returns
-        -------
-        bool | np.ndarray
-            Whether the points p0 and p1 are considered different or not.
-        """
-        p0 = np.asarray(p0)
-        p1 = np.asarray(p1)
-        atol = self.tolerance_for_point_equality
-
-        # Case 1: single pair of points
-        if p0.ndim == 1 and p1.ndim == 1:
-            if abs(p0[0] - p1[0]) > atol:
-                return True
-            if abs(p0[1] - p1[1]) > atol:
-                return True
-            if abs(p0[2] - p1[2]) > atol:
-                return True
-            return False
-
-        # Case 2: multiple pairs of points
-        is_far = abs(p1 - p0) > atol
-        return is_far[:, 0] | is_far[:, 1] | is_far[:, 2]
-
-    def consider_points_different_2d(
-        self,
-        p0: Iterable[float] | Iterable[Iterable[float]],
-        p1: Iterable[float] | Iterable[Iterable[float]],
-    ) -> bool | np.ndarray:
-        """Determine if two points are distant enough to be considered different.
-
-        This uses the algorithm from np.isclose(), but expanded here for the
-        2D point case. NumPy is overkill for such a small question.
-        Parameters
-        ----------
-        p0
-            first point
-        p1
-            second point
-
-        Returns
-        -------
-        bool | np.ndarray
-            Whether the points p0 and p1 are considered different or not.
-        """
-        p0 = np.asarray(p0)
-        p1 = np.asarray(p1)
-        atol = self.tolerance_for_point_equality
-
-        # Case 1: single pair of points
-        if p0.ndim == 1 and p1.ndim == 1:
-            if abs(p0[0] - p1[0]) > atol:
-                return True
-            if abs(p0[1] - p1[1]) > atol:
-                return True
-            return False
-
-        # Case 2: multiple pairs of points
-        # Ensure that we're only working with 2D components
-        p0 = p0.reshape(-1, self.dim)[:, :2]
-        p1 = p1.reshape(-1, self.dim)[:, :2]
-        is_far = abs(p1 - p0) > atol
-        return is_far[:, 0] | is_far[:, 1]
 
     # Information about line
     def get_cubic_bezier_tuples_from_points(self, points: np.ndarray) -> np.ndarray:
@@ -1262,39 +1190,46 @@ class VMobject(Mobject):
         return self.get_subpaths_from_points(self.points)
 
     def get_subpath_split_indices_from_points(
-        self, points: np.ndarray, n_dims: int = 3, strip_null_end_curves: bool = False
+        self,
+        points: np.ndarray,
+        n_dims: int = 3,
+        strip_null_end_curves: bool = False,
     ) -> np.ndarray:
         nppcc = self.n_points_per_cubic_curve
         starts = points[::nppcc]
         ends = points[nppcc - 1 :: nppcc]
         # This ensures that there are no more starts than ends.
-        # TODO: ends.shape[0] would be more efficient, but some test cases regarding
-        # Flash and ShowPassing flash expect a Python list instead of an ndarray, so
-        # ends.shape[0] breaks those test cases. Fix these inconsistencies.
+        # TODO: ends.shape[0] would be more efficient, but some test cases
+        # regarding Flash and ShowPassingFlash expect a Python list instead of
+        # an ndarray, so ends.shape[0] breaks those test cases.
+        # Fix these inconsistencies.
         n_curves = len(ends)
         starts = starts[:n_curves]
 
-        # DO NOT DELETE THIS! Or else, a [[0 0]] ndarray will be returned
-        # for an empty list of points, when it should instead return [].
+        # Zero curves case: if nothing was done to handle this, the statement
+        # split_indices = np.empty((diff_indices.shape[0] + 1, 2), dtype=int)
+        # and later statements would incorrectly generate the ndarray [[0 0]],
+        # which WILL break other methods.
+        # Instead, an empty (0, 2)-shaped ndarray must be returned immediately.
         if n_curves == 0:
             return np.empty((0, 2), dtype=int)
+        # Single curve case: are_points_different(starts[1:], ends[:-1]) will
+        # fail, so return immediately. The split indices are just [[0 nppcc]].
         if n_curves == 1:
             return np.array([[0, nppcc]])
 
         if n_dims == 2:
-            is_equal = self.consider_points_equals_2d
-            is_different = self.consider_points_different_2d
+            are_points_equal = self.consider_points_equals_2d
         else:
-            is_equal = self.consider_points_equals
-            is_different = self.consider_points_different
+            are_points_equal = self.consider_points_equals
 
-        is_far = is_different(starts[1:], ends[:-1])
-        aux = np.arange(1, is_far.shape[0] + 1)[is_far]
+        diff_bools = ~are_points_equal(starts[1:], ends[:-1])
+        diff_indices = np.arange(1, diff_bools.shape[0] + 1)[diff_bools]
 
-        split_indices = np.empty((aux.shape[0] + 1, 2), dtype=int)
+        split_indices = np.empty((diff_indices.shape[0] + 1, 2), dtype=int)
         split_indices[0, 0] = 0
-        split_indices[1:, 0] = aux
-        split_indices[:-1, 1] = aux
+        split_indices[1:, 0] = diff_indices
+        split_indices[:-1, 1] = diff_indices
         split_indices[-1, 1] = n_curves
 
         if strip_null_end_curves:
@@ -1302,7 +1237,7 @@ class VMobject(Mobject):
                 start_i, end_i = split_indices[i]
                 while (
                     end_i > start_i + 1
-                    and is_equal(
+                    and are_points_equal(
                         points[nppcc * (end_i - 1) : nppcc * end_i], ends[end_i - 2]
                     ).all()
                 ):
@@ -1314,8 +1249,22 @@ class VMobject(Mobject):
         return split_indices
 
     def get_subpath_split_indices(
-        self, n_dims: int = 3, strip_null_end_curves: bool = False
+        self,
+        n_dims: int = 3,
+        strip_null_end_curves: bool = False,
     ) -> np.ndarray:
+        """Returns the necessary indices to split :attr:`.VMobject.points` into
+        the corresponding subpaths.
+
+        Subpaths are ranges of curves with each pair of consecutive curves
+        having their end/start points coincident.
+
+        Returns
+        -------
+        np.ndarray
+            (n_subpaths, 2)-shaped array, where the first and second columns
+            indicate respectively the start and end indices for each subpath.
+        """
         return self.get_subpath_split_indices_from_points(
             self.points, n_dims, strip_null_end_curves
         )
@@ -1328,7 +1277,7 @@ class VMobject(Mobject):
         )
 
         self.memory["piece_curves"] = {
-            "points": self.points,
+            "points": self.points.copy(),
             "sample_points": sample_points,
             "lengths": lengths,
             "acc_lengths": np.add.accumulate(lengths),
@@ -1339,55 +1288,67 @@ class VMobject(Mobject):
             self._init_curve_memory(sample_points)
             return
 
+        nppcc = self.n_points_per_cubic_curve
         curr_points = self.points
         memo_points = self.memory["piece_curves"]["points"]
-
         curr_n_points = len(self.points)
         memo_n_points = memo_points.shape[0]
 
-        nppcc = self.n_points_per_cubic_curve
         n_points = min(curr_n_points, memo_n_points)
         n_curves = n_points // nppcc
         n_points = n_points * nppcc
 
-        # Check if any Bezier had its points changed to recalculate its length.
+        # Check if any Bézier curve had its points changed to recalculate its length.
         neq = curr_points[:n_points] != memo_points[:n_points]
         # Collapse every 3D point group into a single value per point.
         neq = neq.reshape(-1, self.dim)
         neq2 = neq[:, 0]
         for i in range(1, self.dim):
             neq2 |= neq[:, i]
-        # Collapse every group of 4 values into a single value per curve.
+        # Collapse every group of 4 (or nppcc) values into a single value per curve.
         neq2 = neq2.reshape(-1, nppcc)
         differences = neq2[:, 0]
         for i in range(1, nppcc):
             differences |= neq2[:, i]
         differences = np.arange(n_curves)[differences]
 
+        if curr_n_points == memo_n_points and differences.shape[0] == 0:
+            return
+
         # If the amount of points has changed, adjust lengths
-        curr_n_curves = curr_n_points / nppcc
-        memo_n_curves = memo_n_points / nppcc
-        if curr_n_points < memo_n_points:
-            new_lengths = self.memory["piece_curves"]["lengths"][:curr_n_curves]
-            self.memory["piece_curves"]["lengths"] = new_lengths
-        elif curr_n_points > memo_n_points:
+        curr_n_curves = curr_n_points // nppcc
+        memo_n_curves = memo_n_points // nppcc
+        if curr_n_points > memo_n_points:
             new_lengths = np.empty(curr_n_curves)
-            new_lengths[:memo_n_curves] = self.memory["piece_curves"]
+            new_lengths[:memo_n_curves] = self.memory["piece_curves"]["lengths"]
             new_lengths[memo_n_curves:] = [
                 self.get_nth_curve_length(n, sample_points)
                 for n in range(memo_n_curves, curr_n_curves)
             ]
+            new_lengths[differences] = [
+                self.get_nth_curve_length(n, sample_points) for n in differences
+            ]
             self.memory["piece_curves"]["lengths"] = new_lengths
-
-        # Update memo, recalculating only the lengths which have changed
-        self.memory["piece_curves"]["points"] = curr_points
-        self.memory["piece_curves"]["lengths"][differences] = [
-            self.get_nth_curve_length(n) for n in differences
-        ]
-        if differences.shape[0] > 0:
             self.memory["piece_curves"]["acc_lengths"] = np.add.accumulate(
                 self.memory["piece_curves"]["lengths"]
             )
+
+        else:
+            new_lengths = self.memory["piece_curves"]["lengths"][:curr_n_curves]
+            new_lengths[differences] = [
+                self.get_nth_curve_length(n, sample_points) for n in differences
+            ]
+            self.memory["piece_curves"]["lengths"] = new_lengths
+            if differences.shape[0] == 0:
+                self.memory["piece_curves"]["acc_lengths"] = self.memory[
+                    "piece_curves"
+                ]["acc_lengths"][:curr_n_curves]
+            else:
+                self.memory["piece_curves"]["acc_lengths"] = np.add.accumulate(
+                    self.memory["piece_curves"]["lengths"]
+                )
+
+        self.memory["piece_curves"]["points"] = curr_points.copy()
 
     def get_nth_curve_points(self, n: int) -> np.ndarray:
         """Returns the points defining the nth curve of the vmobject.
@@ -1587,23 +1548,14 @@ class VMobject(Mobject):
         acc_lengths = self.memory["piece_curves"]["acc_lengths"]
         target_length = alpha * acc_lengths[-1]
 
-        num_curves = self.get_num_curves()
-
         # Binary search
-        left = 0
-        right = num_curves - 1
-        while right > left:
-            mid = (left + right) // 2
-            if acc_lengths[mid] >= target_length:
-                right = mid
-            else:
-                left = mid + 1
+        i = bisect_left(acc_lengths, target_length)
 
-        nth_curve = self.get_nth_curve_function(left)
-        if left == 0:
-            t = target_length / lengths[left]
+        nth_curve = self.get_nth_curve_function(i)
+        if i == 0:
+            t = target_length / lengths[i]
         else:
-            t = (target_length - acc_lengths[left - 1]) / lengths[left]
+            t = (target_length - acc_lengths[i - 1]) / lengths[i]
         return nth_curve(t)
 
     def proportion_from_point(
@@ -1709,6 +1661,10 @@ class VMobject(Mobject):
             return self.points
         num_curves = self.get_num_curves()
         anchors = np.empty((2 * num_curves, self.dim))
+        # Every end anchor ends a Bézier curve, but not every start anchor
+        # begins a full Bézier curve (it can be incomplete). So the start
+        # anchors must be sliced in case there are lonely points at the end,
+        # but the end anchors don't really need to be sliced.
         anchors[0::2] = self.get_start_anchors()[:num_curves]
         anchors[1::2] = self.get_end_anchors()
         return anchors
