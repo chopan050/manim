@@ -1193,6 +1193,7 @@ class VMobject(Mobject):
         self,
         points: np.ndarray,
         n_dims: int = 3,
+        multiply_by_nppcc: bool = True,
         strip_null_end_curves: bool = False,
     ) -> np.ndarray:
         nppcc = self.n_points_per_cubic_curve
@@ -1216,7 +1217,9 @@ class VMobject(Mobject):
         # Single curve case: are_points_different(starts[1:], ends[:-1]) will
         # fail, so return immediately. The split indices are just [[0 nppcc]].
         if n_curves == 1:
-            return np.array([[0, nppcc]])
+            if multiply_by_nppcc:
+                return np.array([[0, nppcc]])
+            return np.array([[0, 1]])
 
         if n_dims == 2:
             are_points_equal = self.consider_points_equals_2d
@@ -1244,13 +1247,15 @@ class VMobject(Mobject):
                     end_i -= 1
                 split_indices[i, 1] = end_i
 
-        split_indices *= self.n_points_per_cubic_curve
+        if multiply_by_nppcc:
+            split_indices *= self.n_points_per_cubic_curve
 
         return split_indices
 
     def get_subpath_split_indices(
         self,
         n_dims: int = 3,
+        multiply_by_nppcc: bool = True,
         strip_null_end_curves: bool = False,
     ) -> np.ndarray:
         """Returns the necessary indices to split :attr:`.VMobject.points` into
@@ -1266,7 +1271,7 @@ class VMobject(Mobject):
             indicate respectively the start and end indices for each subpath.
         """
         return self.get_subpath_split_indices_from_points(
-            self.points, n_dims, strip_null_end_curves
+            self.points, n_dims, multiply_by_nppcc, strip_null_end_curves
         )
 
     # Curve functions

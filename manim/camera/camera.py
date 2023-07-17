@@ -681,37 +681,21 @@ class Camera:
         if len(points) == 0:
             return
 
-        points_2d = points[:, :2]
-        start_anchors = points_2d[0::nppcc]
-        handles_1 = points_2d[1::nppcc]
-        handles_2 = points_2d[2::nppcc]
-        end_anchors = points_2d[nppcc - 1 :: nppcc]
-
-        is_not_close = np.abs(
-            end_anchors[:-1] - start_anchors[1:]
-        ) > vmobject.tolerance_for_point_equality + 1e-5 * np.abs(end_anchors[:-1])
-        is_not_close = is_not_close[:, 0] | is_not_close[:, 1]
-        subpath_divisions = np.arange(is_not_close.size)[is_not_close]
-
-        subpath_start_indices = np.empty(subpath_divisions.size + 1, dtype=int)
-        subpath_start_indices[0] = 0
-        subpath_start_indices[1:] = subpath_divisions + 1
-
-        subpath_end_indices = np.empty(subpath_divisions.size + 1, dtype=int)
-        subpath_end_indices[:-1] = subpath_divisions
-        subpath_end_indices[-1] = start_anchors.shape[0] - 1
+        flat_quads = points[:, :2].reshape(-1, 8)
+        starts = flat_quads[:, :2]
+        triplets = flat_quads[:, 2:]
+        split_indices = vmobject.get_subpath_split_indices(
+            n_dims=2, multiply_by_nppcc=False
+        )
+        # print(flat_quads)
 
         ctx.new_path()
-        for start_i, end_i in zip(subpath_start_indices, subpath_end_indices):
-            ctx.new_sub_path()
-            start = start_anchors[start_i]
-            ctx.move_to(*start)
-            for i in range(start_i, end_i + 1):
-                h1 = handles_1[i]
-                h2 = handles_2[i]
-                end = end_anchors[i]
-                ctx.curve_to(*h1, *h2, *end)
-            if vmobject.consider_points_equals_2d(start, end):
+        for start_i, end_i in split_indices:
+            ctx.move_to(*starts[start_i])
+            [ctx.curve_to(*triplet) for triplet in triplets[start_i:end_i]]
+            if vmobject.consider_points_equals_2d(
+                starts[start_i], triplets[end_i - 1, -2:]
+            ):
                 ctx.close_path()
         return self
 
@@ -1098,7 +1082,7 @@ class Camera:
         # Subclasses (like ThreeDCamera) may want to
         # adjust points further before they're shown
         points = np.asarray(points)
-        if not np.isfinite(np.add.accumulate(points.reshape(-1))[-1]):
+        if not np.bitwise_and.accumulate(np.isfinite(points.reshape(-1)))[-1]:
             # TODO, print some kind of warning about
             # mobject having invalid points?
             points = np.zeros((1, 3))
