@@ -11,7 +11,7 @@ from manim import logger
 from ._show_diff import show_diff_helper
 
 FRAME_ABSOLUTE_TOLERANCE = 1.01
-FRAME_MISMATCH_RATIO_TOLERANCE = 1e-4
+FRAME_MISMATCH_RATIO_TOLERANCE = 1e-5
 
 
 class _FramesTester:

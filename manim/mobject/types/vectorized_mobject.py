@@ -1950,13 +1950,16 @@ class VMobject(Mobject):
             "sheen_factor",
         ]
         for attr in attrs:
-            setattr(
-                self,
-                attr,
-                interpolate(getattr(mobject1, attr), getattr(mobject2, attr), alpha),
-            )
             if alpha == 1.0:
                 setattr(self, attr, getattr(mobject2, attr))
+            else:
+                setattr(
+                    self,
+                    attr,
+                    interpolate(
+                        getattr(mobject1, attr), getattr(mobject2, attr), alpha
+                    ),
+                )
 
     def pointwise_become_partial(
         self,
