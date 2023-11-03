@@ -13,6 +13,7 @@ from .cli.init.commands import init
 from .cli.new.group import new
 from .cli.plugins.commands import plugins
 from .cli.render.commands import render
+from .cli.shell.commands import shell
 from .constants import EPILOG
 
 
@@ -55,6 +56,7 @@ main.add_command(plugins)
 main.add_command(init)
 main.add_command(new)
 main.add_command(render)
+main.add_command(shell)
 
 if __name__ == "__main__":
     main()
