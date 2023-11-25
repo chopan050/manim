@@ -303,7 +303,6 @@ class OpenGLRenderer(Renderer):
         frame_shape = (14.2222222221, 8.0)
         w, h = frame_shape
         d = camera.get_focal_distance()
-        print("Focal distance:", d)
         is_fixed_in_frame = 0.0
         camera_data = {
             "frame_shape": frame_shape,
