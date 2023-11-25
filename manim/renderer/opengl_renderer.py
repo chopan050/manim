@@ -35,6 +35,7 @@ ubo_camera = STD140BufferFormat(
         ("float", "is_fixed_in_frame"),
         ("float", "is_fixed_orientation"),
         ("vec3", "fixed_orientation_center"),
+        ("mat4", "u_projection_view_matrix"),
     ),
 )
 
@@ -299,14 +300,25 @@ class OpenGLRenderer(Renderer):
         self.output_fbo = self.ctx.detect_framebuffer()
 
     def init_camera(self, camera: OpenGLCameraFrame):
+        frame_shape = (14.2222222221, 8.0)
+        w, h = frame_shape
+        d = camera.get_focal_distance()
+        print("Focal distance:", d)
+        is_fixed_in_frame = 0.0
         camera_data = {
-            "frame_shape": (14.2222222221, 8.0),
+            "frame_shape": frame_shape,
             "camera_center": camera.get_center(),
             "camera_rotation": camera.get_inverse_camera_rotation_matrix().T,
-            "focal_distance": camera.get_focal_distance(),
+            "focal_distance": d,
             "is_fixed_in_frame": 0.0,
             "is_fixed_orientation": 0.0,
             "fixed_orientation_center": np.array([0.0, 0.0, 0.0]),
+            "u_projection_view_matrix": np.array([
+                [2/w, 0, 0, 0],
+                [0, 2/h, 0, 0],
+                [0, 0, -0.01, 0],
+                [0, 0, -1/d, 1],
+            ], dtype=np.float32).T
         }
         ubo_camera.write(camera_data)
 
