@@ -18,6 +18,7 @@ from manim.renderer.renderer import ImageType, Renderer, RendererData
 from manim.renderer.shader_wrapper import ShaderWrapper
 from manim.utils.iterables import listify, resize_array, resize_with_interpolation
 from manim.utils.space_ops import cross2d, earclip_triangulation, z_to_vector
+from manim.mobject.geometry.arc import Circle
 
 if TYPE_CHECKING:
     from manim.mobject.types.vectorized_mobject import VMobject
@@ -328,7 +329,10 @@ class OpenGLRenderer(Renderer):
             raise TypeError()
 
         points = mob.points
-        stroke_data = np.zeros(len(points), dtype=stroke_dtype)
+        num_points = len(points)
+        num_stroke_rgbas = len(mob.renderer_data.stroke_rgbas)
+        num_stroke_widths = len(mob.renderer_data.stroke_widths)
+        stroke_data = np.zeros(num_points, dtype=stroke_dtype)
 
         nppc = mob.n_points_per_curve
         stroke_data["point"] = points
@@ -336,8 +340,8 @@ class OpenGLRenderer(Renderer):
         stroke_data["prev_point"][nppc:] = points[:-nppc]
         stroke_data["next_point"][:-nppc] = points[nppc:]
         stroke_data["next_point"][-nppc:] = points[:nppc]
-        stroke_data["color"] = mob.renderer_data.stroke_rgbas
-        stroke_data["stroke_width"] = mob.renderer_data.stroke_widths.reshape((-1, 1))
+        stroke_data["color"] = np.tile(mob.renderer_data.stroke_rgbas, (int(np.ceil(num_points/num_stroke_rgbas)), 1))[:num_points]
+        stroke_data["stroke_width"] = np.tile(mob.renderer_data.stroke_widths.reshape((-1, 1)), (int(np.ceil(num_points/num_stroke_widths)), 1))[:num_points]
 
         return stroke_data
 
@@ -346,12 +350,15 @@ class OpenGLRenderer(Renderer):
         if not isinstance(mob.renderer_data, GLRenderData):
             raise TypeError()
 
-        fill_data = np.zeros(len(mob.points), dtype=fill_dtype)
+        num_points = len(mob.points)
+        num_fill_rgbas = len(mob.renderer_data.fill_rgbas)
+        num_normals = len(mob.renderer_data.normals)
+        fill_data = np.zeros(num_points, dtype=fill_dtype)
         fill_data["point"] = mob.points
-        fill_data["color"] = mob.renderer_data.fill_rgbas
+        fill_data["color"] = np.tile(mob.renderer_data.fill_rgbas, (int(np.ceil(num_points/num_fill_rgbas)), 1))[:num_points]
         # fill_data["orientation"] = mob.renderer_data.orientation
-        fill_data["unit_normal"] = mob.renderer_data.normals
-        fill_data["vert_index"] = np.reshape(range(len(mob.points)), (-1, 1))
+        fill_data["unit_normal"] = np.tile(mob.renderer_data.normals, (int(np.ceil(num_points/num_normals)), 1))[:num_points]
+        fill_data["vert_index"] = np.reshape(range(num_points), (-1, 1))
         return fill_data
 
     def pre_render(self, camera):
@@ -362,19 +369,25 @@ class OpenGLRenderer(Renderer):
     def post_render(self):
         self.ctx.copy_framebuffer(self.output_fbo, self.color_buffer_fbo)
 
-    def render_program(self, prog, data, indices=None):
-        vbo = self.ctx.buffer(data.tobytes())
+    def render_program(
+        self,
+        program: gl.Program,
+        shader_data: GLRenderData,
+        vertex_indices: np.ndarray | None = None,
+    ):
+        vbo = self.ctx.buffer(shader_data.tobytes())
         ibo = (
-            self.ctx.buffer(np.asarray(indices).astype("i4").tobytes())
-            if indices is not None
+            self.ctx.buffer(np.asarray(vertex_indices).astype("i4").tobytes())
+            if vertex_indices is not None
             else None
         )
         # print(prog,vbo,data)
-        vert_format = gl.detect_format(prog, data.dtype.names)
+        input_names = shader_data.dtype.names
+        vertex_format = gl.detect_format(program, input_names)
         # print(vert_format)
         vao = self.ctx.vertex_array(
-            program=prog,
-            content=[(vbo, vert_format, *data.dtype.names)],
+            program=program,
+            content=[(vbo, vertex_format, *input_names)],
             index_buffer=ibo,
         )
 

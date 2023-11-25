@@ -1607,6 +1607,12 @@ class OpenGLVMobject(OpenGLMobject):
             sw.uniforms.update(sw_list[0].uniforms)
         return list(filter(lambda sw: len(sw.vert_data) > 0, self.shader_wrapper_list))
 
+    # TODO: Maybe "refresh_stroke_shader_data" is a better name?
+    # "get..." seems to imply "obtain a value without side effects",
+    # which is not the case here (it modifies self.stroke_data and self.data,
+    # and self.refresh_shader_data doesn't even use the return value!)
+    # Also, OpenGLRenderer already has a "get_stroke_shader_data",
+    # which actually GETS a value without modifying anything.
     def get_stroke_shader_data(self) -> np.ndarray:
         points = self.points
         if len(self.stroke_data) != len(points):
@@ -1625,6 +1631,12 @@ class OpenGLVMobject(OpenGLMobject):
 
         return self.stroke_data
 
+    # TODO: Maybe "refresh_fill_shader_data" is a better name?
+    # "get..." seems to imply "obtain a value without side effects",
+    # which is not the case here (it modifies self.fill_data and self.data,
+    # and self.refresh_shader_data doesn't even use the return value!)
+    # Also, OpenGLRenderer already has a "get_fill_shader_data",
+    # which actually GETS without modifying anything.
     def get_fill_shader_data(self) -> np.ndarray:
         points = self.points
         if len(self.fill_data) != len(points):
