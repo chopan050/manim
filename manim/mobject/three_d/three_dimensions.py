@@ -910,6 +910,7 @@ class Line3D(Cylinder):
         end: np.ndarray = RIGHT,
         thickness: float = 0.02,
         color: ParsableManimColor | None = None,
+        resolution: Sequence[float] = (1, 24),
         **kwargs,
     ):
         self.thickness = thickness
@@ -1143,15 +1144,12 @@ class Arrow3D(Line3D):
         height: float = 0.3,
         base_radius: float = 0.08,
         color: ParsableManimColor = WHITE,
+        resolution: Sequence[float] = (1, 24),
         **kwargs,
     ) -> None:
         super().__init__(
             start=start, end=end, thickness=thickness, color=color, **kwargs
         )
-
-        resolution = kwargs.get("resolution", None)
-        if resolution is None:
-            resolution = (1, 12)
 
         self.length = np.linalg.norm(self.vect)
         self.set_start_and_end_attrs(
