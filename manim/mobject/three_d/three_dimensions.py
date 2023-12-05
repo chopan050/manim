@@ -1149,15 +1149,24 @@ class Arrow3D(Line3D):
             start=start, end=end, thickness=thickness, color=color, **kwargs
         )
 
+        resolution = kwargs.get("resolution", None)
+        if resolution is None:
+            resolution = (1, 12)
+
         self.length = np.linalg.norm(self.vect)
         self.set_start_and_end_attrs(
             self.start,
             self.end - height * self.direction,
+            resolution=resolution,
             **kwargs,
         )
 
         self.cone = Cone(
-            direction=self.direction, base_radius=base_radius, height=height, **kwargs
+            direction=self.direction,
+            base_radius=base_radius,
+            height=height,
+            resolution=resolution,
+            **kwargs,
         )
         self.cone.shift(end)
         self.add(self.cone)
