@@ -14,38 +14,48 @@ __all__ = [
 ]
 
 
+from typing import TYPE_CHECKING, Literal
+
+import numpy as np
+
 from manim.constants import ORIGIN, UP
 from manim.utils.space_ops import get_unit_normal, norm
 
+if TYPE_CHECKING:
+    from manim.typing import Point3D, Vector
 
-def get_3d_vmob_gradient_start_and_end_points(vmob):
+if TYPE_CHECKING:
+    from manim.typing import Point3D, Vector
+
+
+def get_3d_vmob_gradient_start_and_end_points(vmob) -> tuple[Point3D, Point3D]:
     return (
         get_3d_vmob_start_corner(vmob),
         get_3d_vmob_end_corner(vmob),
     )
 
 
-def get_3d_vmob_start_corner_index(vmob):
+def get_3d_vmob_start_corner_index(vmob) -> Literal[0]:
     return 0
 
 
-def get_3d_vmob_end_corner_index(vmob):
+def get_3d_vmob_end_corner_index(vmob) -> int:
     return ((len(vmob.points) - 1) // 6) * 3
 
 
-def get_3d_vmob_start_corner(vmob):
+def get_3d_vmob_start_corner(vmob) -> Point3D:
     if vmob.get_num_points() == 0:
         return ORIGIN
     return vmob.points[get_3d_vmob_start_corner_index(vmob)]
 
 
-def get_3d_vmob_end_corner(vmob):
+def get_3d_vmob_end_corner(vmob) -> Point3D:
     if vmob.get_num_points() == 0:
         return ORIGIN
     return vmob.points[get_3d_vmob_end_corner_index(vmob)]
 
 
-def get_3d_vmob_unit_normal(vmob, point_index):
+def get_3d_vmob_unit_normal(vmob, point_index: int) -> Vector:
     n_points = vmob.get_num_points()
     if len(vmob.get_anchors()) <= 2:
         return UP
@@ -61,9 +71,9 @@ def get_3d_vmob_unit_normal(vmob, point_index):
     return unit_normal
 
 
-def get_3d_vmob_start_corner_unit_normal(vmob):
+def get_3d_vmob_start_corner_unit_normal(vmob) -> Vector:
     return get_3d_vmob_unit_normal(vmob, get_3d_vmob_start_corner_index(vmob))
 
 
-def get_3d_vmob_end_corner_unit_normal(vmob):
+def get_3d_vmob_end_corner_unit_normal(vmob) -> Vector:
     return get_3d_vmob_unit_normal(vmob, get_3d_vmob_end_corner_index(vmob))
