@@ -258,35 +258,27 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
         end_anchors[self.acc_n_beziers - 1] = subpath_end_points
 
         # Set anchors as points in ParametricFunction
-        nppcc = self.n_points_per_cubic_curve
-        self.points = np.empty((nppcc * self.total_n_beziers, 3))
-        self.points[::nppcc] = start_anchors
-        self.points[nppcc - 1 :: nppcc] = end_anchors
+        nppc = self.n_points_per_curve
+        if self.use_smoothing and nppc == 3:
+            self.points = np.empty((2 * nppc * self.total_n_beziers, 3))
+            self.points[:: 2 * nppc] = start_anchors
+            self.points[2 * nppc - 1 :: 2 * nppc] = end_anchors
+        else:
+            self.points = np.empty((nppc * self.total_n_beziers, 3))
+            self.points[::nppc] = start_anchors
+            self.points[nppc - 1 :: nppc] = end_anchors
 
         # Calculate handles and set them as points in
         # ParametricFunction
         if self.use_smoothing:
-            # Smooth curve: Set handles such that the resulting curve is smooth
-            # TODO: the following "to-do" might not apply anymore since
-            # VMobject.make_smooth was skipped here
             # TODO: not in line with upstream, approx_smooth does not exist
-            start_i = 0
-            for n_beziers in self.n_beziers_per_path:
-                end_i = start_i + n_beziers
-                subpath_anchors = np.empty((n_beziers + 1, 3))
-                subpath_anchors[:-1] = start_anchors[start_i:end_i]
-                subpath_anchors[-1] = end_anchors[end_i - 1]
-                subpath_handles = get_handles_for_smooth_cubic_spline(subpath_anchors)
-                for i in range(1, nppcc - 1):
-                    self.points[
-                        nppcc * start_i + i : nppcc * end_i + i : nppcc
-                    ] = subpath_handles[i - 1]
-                start_i = end_i
+            self.make_smooth()
         else:
             # Jagged curve: Create handles which lay on the segment
-            for i in range(1, nppcc - 1):
-                self.points[i::nppcc] = interpolate(
-                    start_anchors, end_anchors, i / (nppcc - 1)
+            self.points = np.empty((nppc * self.total_n_beziers, 3))
+            for i in range(nppc):
+                self.points[i::nppc] = interpolate(
+                    start_anchors, end_anchors, i / (nppc - 1)
                 )
 
         return self
