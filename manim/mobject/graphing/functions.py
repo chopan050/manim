@@ -14,7 +14,7 @@ from manim import config
 from manim.mobject.graphing.scale import LinearBase, _ScaleBase
 from manim.mobject.opengl.opengl_compatibility import ConvertToOpenGL
 from manim.mobject.types.vectorized_mobject import VMobject
-from manim.utils.bezier import get_smooth_handle_points, interpolate
+from manim.utils.bezier import get_handles_for_smooth_cubic_spline, interpolate
 from manim.utils.color import YELLOW
 
 
@@ -276,7 +276,7 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
                 subpath_anchors = np.empty((n_beziers + 1, 3))
                 subpath_anchors[:-1] = start_anchors[start_i:end_i]
                 subpath_anchors[-1] = end_anchors[end_i - 1]
-                subpath_handles = get_smooth_handle_points(subpath_anchors)
+                subpath_handles = get_handles_for_smooth_cubic_spline(subpath_anchors)
                 for i in range(1, nppcc - 1):
                     self.points[
                         nppcc * start_i + i : nppcc * end_i + i : nppcc

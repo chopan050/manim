@@ -43,6 +43,7 @@ __all__ = [
 
 
 import itertools as it
+from math import sqrt
 from typing import Sequence
 
 import numpy as np
@@ -58,7 +59,7 @@ def norm_squared(v: np.ndarray) -> float:
 
 
 def norm(v: np.ndarray) -> np.ndarray:
-    return math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+    return sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
 
 
 def dot(v1: np.ndarray, v2: np.ndarray) -> float:

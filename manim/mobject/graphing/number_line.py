@@ -17,7 +17,7 @@ import numpy as np
 from manim import config
 from manim.constants import *
 from manim.mobject.geometry.line import Line
-from manim.mobject.graphing.scale import UnitLinearBase, _ScaleBase
+from manim.mobject.graphing.scale import LinearBase, _ScaleBase
 from manim.mobject.text.numbers import DecimalNumber
 from manim.mobject.text.tex_mobject import MathTex, Tex
 from manim.mobject.types.vectorized_mobject import VGroup, VMobject
@@ -63,7 +63,7 @@ class NumberLine(Line):
         Whether to add numbers to the tick marks. The number of decimal places is determined
         by the step size, this default can be overridden by ``decimal_number_config``.
     scaling
-        The way the ``x_range`` is value is scaled, i.e. :class:`~.LogBase` for a logarithmic numberline. Defaults to :class:`~.UnitLinearBase`.
+        The way the ``x_range`` is value is scaled, i.e. :class:`~.LogBase` for a logarithmic numberline. Defaults to :class:`~.LinearBase`.
     font_size
         The size of the label mobjects. Defaults to 36.
     label_direction
@@ -156,7 +156,7 @@ class NumberLine(Line):
         font_size: float = 36,
         label_direction: Sequence[float] = DOWN,
         label_constructor: VMobject = MathTex,
-        scaling: _ScaleBase = UnitLinearBase(),
+        scaling: _ScaleBase = LinearBase(),
         line_to_number_buff: float = MED_SMALL_BUFF,
         decimal_number_config: dict | None = None,
         numbers_to_exclude: Iterable[float] | None = None,
@@ -187,9 +187,6 @@ class NumberLine(Line):
         # turn into a NumPy array to scale by just applying the function
         self.x_range = np.array(x_range, dtype=float)
         self.x_min, self.x_max, self.x_step = scaling.function(self.x_range)
-        self.x_min_no_tips = self.x_min
-        self.x_max_no_tips = self.x_max
-        self.div = 1 / (self.x_max - self.x_min)
         self.length = length
         self.unit_size = unit_size
         # ticks
@@ -266,43 +263,6 @@ class NumberLine(Line):
                     excluding=self.numbers_to_exclude,
                     font_size=self.font_size,
                 )
-
-    def add_tip(
-        self, tip=None, tip_shape=None, tip_length=None, tip_width=None, at_start=False
-    ):
-        """Wrapper for TipableVMobject.add_tip.
-
-        Adds a tip to the NumberLine, and recalculates x_min and x_max
-        from the new line component without its tips, storing the new
-        values in x_min_no_tips and x_max_no_tips.
-        """
-        old_start = self.points[0].copy()
-        old_end = self.points[-1].copy()
-        super().add_tip(tip, tip_shape, tip_length, tip_width, at_start)
-        new_start = self.points[0]
-        new_end = self.points[-1]
-
-        direction = old_end - old_start
-        new_start_proportion = np.dot(new_start - old_start, direction) / np.dot(
-            direction, direction
-        )
-        new_end_proportion = np.dot(new_end - old_start, direction) / np.dot(
-            direction, direction
-        )
-
-        self.x_min_no_tips = self.x_min + new_start_proportion * (
-            self.x_max - self.x_min
-        )
-        self.x_max_no_tips = self.x_min + new_end_proportion * (self.x_max - self.x_min)
-        self.div = 1 / (self.x_max_no_tips - self.x_min_no_tips)
-
-        return self
-
-    def pop_tips(self):
-        result = super().pop_tips()
-        self.x_min_no_tips = self.x_min
-        self.x_max_no_tips = self.x_max
-        return result
 
     def rotate_about_zero(self, angle: float, axis: Sequence[float] = OUT, **kwargs):
         return self.rotate_about_number(0, angle, axis, **kwargs)
@@ -411,9 +371,10 @@ class NumberLine(Line):
         number = np.asarray(number)
         scalar = number.ndim == 0
         number = self.scaling.inverse_function(number)
-        alphas = (number - self.x_min_no_tips) * self.div
+        alphas = (number - self.x_range[0]) / (self.x_range[1] - self.x_range[0])
         alphas = float(alphas) if scalar else alphas.reshape(-1, 1)
-        return interpolate(self.points[0], self.points[-1], alphas)
+        val = interpolate(self.get_start(), self.get_end(), alphas)
+        return val
 
     def point_to_number(self, point: Sequence[float]) -> float:
         """Accepts a point with respect to the scene and returns
@@ -443,10 +404,9 @@ class NumberLine(Line):
 
         """
         point = np.asarray(point)
-        start = self.points[0]
-        end = self.points[-1]
-        direction = end - start
-        proportion = np.dot(point - start, direction) / np.dot(direction, direction)
+        start, end = self.get_start_and_end()
+        unit_vect = normalize(end - start)
+        proportion = np.dot(point - start, unit_vect) / np.dot(end - start, unit_vect)
         return interpolate(self.x_min, self.x_max, proportion)
 
     def n2p(self, number: float | np.ndarray) -> np.ndarray:

@@ -42,7 +42,8 @@ from ...constants import *
 from ...mobject.mobject import Mobject
 from ...utils.bezier import (
     bezier,
-    get_smooth_handle_points,
+    bezier_remap,
+    get_handles_for_smooth_cubic_spline,
     integer_interpolate,
     interpolate,
     partial_bezier_points,
@@ -1032,7 +1033,7 @@ class VMobject(Mobject):
                     anchors = np.empty(((end - start) // nppcc + 1, submob.dim))
                     anchors[:-1] = submob.points[start:end:nppcc]
                     anchors[-1] = submob.points[end - 1]
-                    h1, h2 = get_smooth_handle_points(anchors)
+                    h1, h2 = get_handles_for_smooth_cubic_spline(anchors)
                     submob.points[start + 1 : end : nppcc] = h1
                     submob.points[start + 2 : end : nppcc] = h2
         return self
@@ -1959,13 +1960,14 @@ class VMobject(Mobject):
 
     def insert_n_curves_to_point_list(
         self, n: int, points: Point3D_Array
-    ) -> npt.NDArray[BezierPoints]:
-        """Given an array of k points defining a bezier curves (anchors and handles), returns points defining exactly k + n bezier curves.
+    ) -> Point3D_Array:
+        """Given an array of ``points`` defining :math:`k` Bézier curves (anchors and handles),
+        returns an array of points defining exactly :math:`k + n` Bézier curves.
 
         Parameters
         ----------
         n
-            Number of desired curves.
+            Number of desired curves to add.
         points
             Starting points.
 
@@ -1973,47 +1975,14 @@ class VMobject(Mobject):
         -------
             Points generated.
         """
-
-        nppcc = self.n_points_per_cubic_curve
-
         if len(points) == 1:
+            nppcc = self.n_points_per_cubic_curve
             return np.repeat(points, nppcc * n, 0)
-        bezier_quads = self.get_cubic_bezier_tuples_from_points(points)
-        curr_num = len(bezier_quads)
-        target_num = curr_num + n
-        # This is an array with values ranging from 0
-        # up to curr_num,  with repeats such that
-        # it's total length is target_num.  For example,
-        # with curr_num = 10, target_num = 15, this would
-        # be [0, 0, 1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 8, 9]
-        repeat_indices = (np.arange(target_num, dtype="i") * curr_num) // target_num
 
-        # If the nth term of this list is k, it means
-        # that the nth curve of our path should be split
-        # into k pieces.
-        # In the above example our array had the following elements
-        # [0, 0, 1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 8, 9]
-        # We have two 0s, one 1, two 2s and so on.
-        # The split factors array would hence be:
-        # [2, 1, 2, 1, 2, 1, 2, 1, 2, 1]
-        split_factors = np.zeros(curr_num, dtype="i")
-        np.add.at(split_factors, repeat_indices, 1)
-
-        new_points = np.empty((nppcc * target_num, self.dim))
-        start_i = 0
-        for quad, sf in zip(bezier_quads, split_factors):
-            if sf == 1:
-                new_points[start_i : start_i + nppcc] = quad
-                start_i += nppcc
-            else:
-                # What was once a single cubic curve defined
-                # by "quad" will now be broken into sf
-                # smaller cubic curves
-                for i in range(sf):
-                    new_points[start_i : start_i + nppcc] = partial_bezier_points(
-                        quad, i / sf, (i + 1) / sf
-                    )
-                    start_i += nppcc
+        bezier_tuples = self.get_cubic_bezier_tuples_from_points(points)
+        new_number_of_curves = bezier_tuples.shape[0] + n
+        new_bezier_tuples = bezier_remap(bezier_tuples, new_number_of_curves)
+        new_points = new_bezier_tuples.reshape(-1, 3)
         return new_points
 
     def align_rgbas(self, vmobject: VMobject) -> Self:
