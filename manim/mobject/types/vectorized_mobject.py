@@ -42,8 +42,7 @@ from ...constants import *
 from ...mobject.mobject import Mobject
 from ...utils.bezier import (
     bezier,
-    bezier_remap,
-    get_smooth_cubic_bezier_handle_points,
+    get_smooth_handle_points,
     integer_interpolate,
     interpolate,
     partial_bezier_points,
@@ -1038,7 +1037,7 @@ class VMobject(Mobject):
                     anchors = np.empty(((end - start) // nppcc + 1, submob.dim))
                     anchors[:-1] = submob.points[start:end:nppcc]
                     anchors[-1] = submob.points[end - 1]
-                    h1, h2 = get_smooth_cubic_bezier_handle_points(anchors)
+                    h1, h2 = get_smooth_handle_points(anchors)
                     submob.points[start + 1 : end : nppcc] = h1
                     submob.points[start + 2 : end : nppcc] = h2
         return self
@@ -1846,26 +1845,24 @@ class VMobject(Mobject):
         if self_n_subpaths == vmob_n_subpaths and (self_split_i == vmob_split_i).all():
             return
 
-        self_n_points = self_split_i[-1, 1]
-        vmob_n_points = vmob_split_i[-1, 1]
+        self_n_points_per_subpath = self_split_i[:, 1] - self_split_i[:, 0]
+        vmob_n_points_per_subpath = vmob_split_i[:, 1] - vmob_split_i[:, 0]
 
         if self_n_subpaths < vmob_n_subpaths:
             least_n_subpaths = self_n_subpaths
-            remainder_n_points = vmob_n_points - vmob_split_i[self_n_subpaths - 1, 1]
+            remainder_n_points = np.sum(vmob_n_points_per_subpath[least_n_subpaths:])
         else:
             least_n_subpaths = vmob_n_subpaths
-            remainder_n_points = self_n_points - self_split_i[vmob_n_subpaths - 1, 1]
+            remainder_n_points = np.sum(self_n_points_per_subpath[least_n_subpaths:])
 
         # For each possible pair of subpaths from self and vmob,
         # get the number of points of the longest one to adjust
         # the subpaths accordingly
-        self_n_points_per_path = self_split_i[:, 1] - self_split_i[:, 0]
-        vmob_n_points_per_path = vmob_split_i[:, 1] - vmob_split_i[:, 0]
-        max_n_points_per_path = np.maximum(
-            self_n_points_per_path[:least_n_subpaths],
-            vmob_n_points_per_path[:least_n_subpaths],
+        max_n_points_per_subpath = np.maximum(
+            self_n_points_per_subpath[:least_n_subpaths],
+            vmob_n_points_per_subpath[:least_n_subpaths],
         )
-        max_acc_n_points = np.add.accumulate(max_n_points_per_path)
+        max_acc_n_points = np.add.accumulate(max_n_points_per_subpath)
         max_split_i = np.empty((least_n_subpaths, 2), dtype=int)
         max_split_i[0, 0] = 0
         max_split_i[1:, 0] = max_acc_n_points[:-1]
@@ -1885,48 +1882,54 @@ class VMobject(Mobject):
             vmob_start, vmob_end = vmob_split_i[i]
             max_start, max_end = max_split_i[i]
 
-            self_n = self_n_points_per_path[i]
-            vmob_n = vmob_n_points_per_path[i]
+            self_n_points = self_n_points_per_subpath[i]
+            vmob_n_points = vmob_n_points_per_subpath[i]
 
             # Add corresponding subpaths to the new paths. If necessary,
             # subdivide one of them into more Bèzier curves until its
             # number of points matches the other Mobject's subpath.
             self_subpath = self.points[self_start:self_end]
             vmob_subpath = vmobject.points[vmob_start:vmob_end]
-            if self_n < vmob_n:
+            if self_n_points < vmob_n_points:
                 vmob_new_path[max_start:max_end] = vmob_subpath
                 self_new_path[max_start:max_end] = self.insert_n_curves_to_point_list(
-                    (vmob_n - self_n) // nppcc,
+                    (vmob_n_points - self_n_points) // nppcc,
                     self_subpath,
                 )
-            elif self_n > vmob_n:
+            elif self_n_points > vmob_n_points:
                 self_new_path[max_start:max_end] = self_subpath
                 vmob_new_path[max_start:max_end] = self.insert_n_curves_to_point_list(
-                    (self_n - vmob_n) // nppcc,
+                    (self_n_points - vmob_n_points) // nppcc,
                     vmob_subpath,
                 )
             else:
                 self_new_path[max_start:max_end] = self_subpath
                 vmob_new_path[max_start:max_end] = vmob_subpath
 
-        # Because strip_null_end_curves=True, maybe the old points have to
-        # be cut earlier. Extract the end points from the split indices
-        self_end, vmob_end = self_split_i[-1, 1], vmob_split_i[-1, 1]
-
         # If any of the original paths had more subpaths than the other,
         # add them to the corresponding new path and complete the other
         # one by appending its last anchor as many times as necessary.
         if self_n_subpaths < vmob_n_subpaths:
-            vmob_start = vmob_split_i[least_n_subpaths, 0]
             self_new_path[max_n_points:] = self_new_path[max_n_points - 1]
-            vmob_new_path[max_n_points:] = vmobject.points[vmob_start:vmob_end]
+            for i in range(self_n_subpaths, vmob_n_subpaths):
+                start, end = vmob_split_i[i]
+                n_points = vmob_n_points_per_subpath[i]
+                vmob_new_path[max_n_points : max_n_points + n_points] = vmobject.points[
+                    start:end
+                ]
+                max_n_points += n_points
         elif self_n_subpaths > vmob_n_subpaths:
-            self_start = self_split_i[least_n_subpaths, 0]
-            self_new_path[max_n_points:] = self.points[self_start:self_end]
             vmob_new_path[max_n_points:] = vmob_new_path[max_n_points - 1]
+            for i in range(vmob_n_subpaths, self_n_subpaths):
+                start, end = self_split_i[i]
+                n_points = self_n_points_per_subpath[i]
+                self_new_path[max_n_points : max_n_points + n_points] = self.points[
+                    start:end
+                ]
+                max_n_points += n_points
 
-        self.set_points(self_new_path)
-        vmobject.set_points(vmob_new_path)
+        self.points = self_new_path
+        vmobject.points = vmob_new_path
         return self
 
     def insert_n_curves(self, n: int) -> Self:
@@ -1970,14 +1973,46 @@ class VMobject(Mobject):
             Points generated.
         """
 
-        if len(points) == 1:
-            nppcc = self.n_points_per_cubic_curve
-            return np.repeat(points, nppcc * n, 0)
+        nppcc = self.n_points_per_cubic_curve
 
-        bezier_tuples = self.get_cubic_bezier_tuples_from_points(points)
-        new_number_of_curves = bezier_tuples.shape[0] + n
-        new_bezier_tuples = bezier_remap(bezier_tuples, new_number_of_curves)
-        new_points = new_bezier_tuples.reshape(-1, 3)
+        if len(points) == 1:
+            return np.repeat(points, nppcc * n, 0)
+        bezier_quads = self.get_cubic_bezier_tuples_from_points(points)
+        curr_num = len(bezier_quads)
+        target_num = curr_num + n
+        # This is an array with values ranging from 0
+        # up to curr_num,  with repeats such that
+        # it's total length is target_num.  For example,
+        # with curr_num = 10, target_num = 15, this would
+        # be [0, 0, 1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 8, 9]
+        repeat_indices = (np.arange(target_num, dtype="i") * curr_num) // target_num
+
+        # If the nth term of this list is k, it means
+        # that the nth curve of our path should be split
+        # into k pieces.
+        # In the above example our array had the following elements
+        # [0, 0, 1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 8, 9]
+        # We have two 0s, one 1, two 2s and so on.
+        # The split factors array would hence be:
+        # [2, 1, 2, 1, 2, 1, 2, 1, 2, 1]
+        split_factors = np.zeros(curr_num, dtype="i")
+        np.add.at(split_factors, repeat_indices, 1)
+
+        new_points = np.empty((nppcc * target_num, self.dim))
+        start_i = 0
+        for quad, sf in zip(bezier_quads, split_factors):
+            if sf == 1:
+                new_points[start_i : start_i + nppcc] = quad
+                start_i += nppcc
+            else:
+                # What was once a single cubic curve defined
+                # by "quad" will now be broken into sf
+                # smaller cubic curves
+                for i in range(sf):
+                    new_points[start_i : start_i + nppcc] = partial_bezier_points(
+                        quad, i / sf, (i + 1) / sf
+                    )
+                    start_i += nppcc
         return new_points
 
     def align_rgbas(self, vmobject: VMobject) -> Self:
