@@ -14,7 +14,7 @@ from manim import config
 from manim.mobject.graphing.scale import LinearBase, _ScaleBase
 from manim.mobject.opengl.opengl_compatibility import ConvertToOpenGL
 from manim.mobject.types.vectorized_mobject import VMobject
-from manim.utils.bezier import get_handles_for_smooth_cubic_spline, interpolate
+from manim.utils.bezier import get_smooth_cubic_bezier_handle_points, interpolate
 from manim.utils.color import YELLOW
 
 

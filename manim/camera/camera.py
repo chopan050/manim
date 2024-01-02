@@ -698,8 +698,11 @@ class Camera:
         flat_quads = points[:, :2].reshape(-1, 8)
         starts = flat_quads[:, :2]
         triplets = flat_quads[:, 2:]
-        split_indices = vmobject.get_subpath_split_indices(
-            n_dims=2, multiply_by_nppcc=False
+        split_indices = (
+            vmobject.get_subpath_split_indices(
+                n_dims=2,
+            )
+            // nppcc
         )
         # print(flat_quads)
 
