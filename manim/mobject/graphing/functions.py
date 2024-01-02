@@ -14,7 +14,6 @@ from manim import config
 from manim.mobject.graphing.scale import LinearBase, _ScaleBase
 from manim.mobject.opengl.opengl_compatibility import ConvertToOpenGL
 from manim.mobject.types.vectorized_mobject import VMobject
-from manim.utils.bezier import get_smooth_cubic_bezier_handle_points, interpolate
 from manim.utils.color import YELLOW
 
 
@@ -24,19 +23,9 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
     Parameters
     ----------
     function
-        The function to be plotted in the form of ``(lambda x: x**2)``. It should return
-        an ndarray of coordinates which must be a valid input for :attr:`coords_to_point`,
-        which should convert them into a valid ``(n, 3)``-shaped ndarray of 3D points to be
-        positioned on the scene. If :attr:`coords_to_point` is not assigned a value and
-        thus defaults to the identity function, then :attr:`function` must already return an
-        ndarray of 3D points.
-    coords_to_point
-        A function (intended to be :meth:`CoordinateSystem.coords_to_point`) which converts
-        coordinates into points to be positioned on scene. It should return an
-        ``(n, 3)``-shaped ndarray containing 3D points. By default it is the identity function:
-        ``lambda coords: coords``.
+        The function to be plotted in the form of ``(lambda x: x**2)``
     t_range
-        Determines the length that the function spans. By default: ``[0, 1]``.
+        Determines the length that the function spans. By default ``[0, 1]``
     scaling
         Scaling class applied to the points of the function. Default of :class:`~.LinearBase`.
     use_smoothing
@@ -44,9 +33,9 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
         (Will have odd behaviour with a low number of points)
     use_vectorized
         Whether to pass in the generated t value array to the function as ``[t_0, t_1, ...]``.
-        Only use this if your function supports it. Output should be a NumPy array
+        Only use this if your function supports it. Output should be a numpy array
         of shape ``[[x_0, x_1, ...], [y_0, y_1, ...], [z_0, z_1, ...]]`` but ``z`` can
-        also be 0 if the Axes is 2D.
+        also be 0 if the Axes is 2D
     discontinuities
         Values of t at which the function experiences discontinuity.
     dt
@@ -115,7 +104,6 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
         discontinuities: Iterable[float] | None = None,
         use_smoothing: bool = True,
         use_vectorized: bool = False,
-        coords_to_point: Callable[Sequence[float], [float, float, float]] = None,
         **kwargs,
     ):
         self.function = function
@@ -124,20 +112,12 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
             t_range = np.array([*t_range, 0.01])
 
         self.scaling = scaling
+
         self.dt = dt
         self.discontinuities = discontinuities
         self.use_smoothing = use_smoothing
         self.use_vectorized = use_vectorized
-        # TODO: For some reason, directly using
-        # self.coords_to_point = coords_to_point
-        # increases Mobject.copy's runtime a lot: it messes up with deepcopy.
-        # But why?
-        if coords_to_point is None:
-            self.coords_to_point = lambda *coords: coords
-        else:
-            self.coords_to_point = lambda *coords: coords_to_point(*coords)
         self.t_min, self.t_max, self.t_step = t_range
-        self.set_t_values()
 
         super().__init__(**kwargs)
 
@@ -145,145 +125,50 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
         return self.function
 
     def get_point_from_function(self, t):
-        """Evaluates :attr:`function` f(t) on a given value of t,
-        and positions the obtained coordinates in the scene with
-        :attr:`coords_to_point`."""
-        scaled_t = self.scaling.function(np.asarray(t))
-        ft = np.asarray(self.function(scaled_t))
-        if ft.ndim == 1:
-            point = self.coords_to_point(*ft)
-        else:
-            point = self.coords_to_point(ft.T)
-        return point
-
-    def set_t_values(self):
-        """Calculates an array of t values to evaluate on ParametricFunction.function f(t)."""
-        if self.t_min >= self.t_max:
-            for attr in (
-                "t_lower_bounds",
-                "t_upper_bounds",
-                "n_beziers_per_path",
-                "acc_n_beziers",
-                "scaled_t_range",
-                "scaled_t_upper_bounds",
-            ):
-                setattr(self, attr, np.empty(0))
-            self.total_n_beziers = 0
-            return
-
-        # Get t boundaries for subpaths
-        if self.discontinuities is not None:
-            jumps = np.asarray(self.discontinuities)
-            jumps = jumps[(jumps >= self.t_min) & (jumps <= self.t_max)]
-            n_jumps = jumps.size
-
-            if n_jumps == 0:
-                self.t_lower_bounds = np.array([self.t_min])
-                self.t_upper_bounds = np.array([self.t_max])
-
-            else:
-                jumps = np.sort(jumps)
-
-                self.t_lower_bounds = np.empty(n_jumps + 1)
-                self.t_lower_bounds[0] = self.t_min
-                self.t_lower_bounds[1:] = jumps + self.dt
-
-                self.t_upper_bounds = np.empty(n_jumps + 1)
-                self.t_upper_bounds[:-1] = jumps - self.dt
-                self.t_upper_bounds[-1] = self.t_max
-
-                # If the corresponding upper bound is less than the lower bound,
-                # there cannot be a subpath between them: discard these values
-                subpaths_exist = self.t_upper_bounds - self.t_lower_bounds > 1e-6
-                self.t_lower_bounds = self.t_lower_bounds[subpaths_exist]
-                self.t_upper_bounds = self.t_upper_bounds[subpaths_exist]
-                if self.t_lower_bounds.size == 0:
-                    for attr in (
-                        "n_beziers_per_path",
-                        "acc_n_beziers",
-                        "scaled_t_range",
-                        "scaled_t_upper_bounds",
-                    ):
-                        setattr(self, attr, np.empty(0))
-                    self.total_n_beziers = 0
-                    return
-
-        else:
-            self.t_lower_bounds = np.array([self.t_min])
-            self.t_upper_bounds = np.array([self.t_max])
-
-        # Convenience attributes for later use
-        self.n_beziers_per_path = np.ceil(
-            (self.t_upper_bounds - self.t_lower_bounds) / self.t_step
-        ).astype(int)
-        self.acc_n_beziers = np.add.accumulate(self.n_beziers_per_path)
-        # This avoids using np.sum which is more expensive, because we need
-        # the accumulated number of Bezier curves anyways
-        self.total_n_beziers = self.acc_n_beziers[-1]
-
-        # Calculate ts to be passed to self.function later
-        i = 0
-        self.scaled_t_range = np.empty(self.total_n_beziers)
-        for lower_t, upper_t, n_beziers in zip(
-            self.t_lower_bounds, self.t_upper_bounds, self.n_beziers_per_path
-        ):
-            self.scaled_t_range[i : i + n_beziers] = self.scaling.function(
-                np.arange(lower_t, upper_t, self.t_step)
-            )
-            i += n_beziers
-
-        self.scaled_t_upper_bounds = self.scaling.function(self.t_upper_bounds)
+        return self.function(t)
 
     def generate_points(self):
-        if self.t_lower_bounds.size == 0:
-            return
-
-        # Calculate start and end anchors for every Bezier curve
-        if self.use_vectorized:
-            # ndarray.T is more efficient than np.transpose for these purposes
-            start_anchors = self.function(self.scaled_t_range).T
-            subpath_end_points = self.function(self.scaled_t_upper_bounds).T
+        if self.discontinuities is not None:
+            discontinuities = filter(
+                lambda t: self.t_min <= t <= self.t_max,
+                self.discontinuities,
+            )
+            discontinuities = np.array(list(discontinuities))
+            boundary_times = np.array(
+                [
+                    self.t_min,
+                    self.t_max,
+                    *(discontinuities - self.dt),
+                    *(discontinuities + self.dt),
+                ],
+            )
+            boundary_times.sort()
         else:
-            start_anchors = np.array([self.function(t) for t in self.scaled_t_range])
-            subpath_end_points = [self.function(t) for t in self.scaled_t_upper_bounds]
+            boundary_times = [self.t_min, self.t_max]
 
-        start_anchors = self.coords_to_point(start_anchors)
-        subpath_end_points = self.coords_to_point(subpath_end_points)
+        for t1, t2 in zip(boundary_times[0::2], boundary_times[1::2]):
+            t_range = np.array(
+                [
+                    *self.scaling.function(np.arange(t1, t2, self.t_step)),
+                    self.scaling.function(t2),
+                ],
+            )
 
-        # Just in case there's a single start anchor, this
-        # transforms it into an array containing the anchor
-        start_anchors = start_anchors.reshape(-1, 3)
-        end_anchors = np.empty((self.total_n_beziers, 3))
-        end_anchors[:-1] = start_anchors[1:]
-        end_anchors[self.acc_n_beziers - 1] = subpath_end_points
+            if self.use_vectorized:
+                x, y, z = self.function(t_range)
+                if not isinstance(z, np.ndarray):
+                    z = np.zeros_like(x)
+                points = np.stack([x, y, z], axis=1)
+            else:
+                points = np.array([self.function(t) for t in t_range])
 
-        # Set anchors as points in ParametricFunction
-        nppc = self.n_points_per_curve
-        if self.use_smoothing and nppc == 3:
-            self.points = np.empty((2 * nppc * self.total_n_beziers, 3))
-            self.points[:: 2 * nppc] = start_anchors
-            self.points[2 * nppc - 1 :: 2 * nppc] = end_anchors
-        else:
-            self.points = np.empty((nppc * self.total_n_beziers, 3))
-            self.points[::nppc] = start_anchors
-            self.points[nppc - 1 :: nppc] = end_anchors
-
-        # Calculate handles and set them as points in
-        # ParametricFunction
+            self.start_new_path(points[0])
+            self.add_points_as_corners(points[1:])
         if self.use_smoothing:
             # TODO: not in line with upstream, approx_smooth does not exist
             self.make_smooth()
-        else:
-            # Jagged curve: Create handles which lay on the segment
-            self.points = np.empty((nppc * self.total_n_beziers, 3))
-            for i in range(nppc):
-                self.points[i::nppc] = interpolate(
-                    start_anchors, end_anchors, i / (nppc - 1)
-                )
-
         return self
 
-    # Alias for ParametricFunction.generate_points
     init_points = generate_points
 
 
