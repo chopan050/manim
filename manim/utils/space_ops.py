@@ -2,7 +2,27 @@
 
 from __future__ import annotations
 
-from manim.typing import Point3D_Array, Vector, Vector3
+import itertools as it
+from math import sqrt
+from typing import TYPE_CHECKING, Sequence
+
+import numpy as np
+from mapbox_earcut import triangulate_float32 as earcut
+from scipy.spatial.transform import Rotation
+
+from manim.constants import DOWN, OUT, PI, RIGHT, TAU, UP, RendererType
+from manim.utils.iterables import adjacent_pairs
+
+if TYPE_CHECKING:
+    import numpy.typing as npt
+
+    from manim.typing import (
+        ManimFloat,
+        Point3D_Array,
+        Vector2D,
+        Vector2D_Array,
+        Vector3D,
+    )
 
 __all__ = [
     "norm_squared",
@@ -42,18 +62,6 @@ __all__ = [
 ]
 
 
-import itertools as it
-from math import sqrt
-from typing import Sequence
-
-import numpy as np
-from mapbox_earcut import triangulate_float32 as earcut
-from scipy.spatial.transform import Rotation
-
-from ..constants import DOWN, OUT, PI, RIGHT, TAU, UP, RendererType
-from ..utils.iterables import adjacent_pairs
-
-
 def norm_squared(v: np.ndarray) -> float:
     return v[0] * v[0] + v[1] * v[1] + v[2] * v[2]
 
@@ -66,7 +74,7 @@ def dot(v1: np.ndarray, v2: np.ndarray) -> float:
     return v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]
 
 
-def cross(v1: Vector3, v2: Vector3) -> Vector3:
+def cross(v1: Vector3D, v2: Vector3D) -> Vector3D:
     return np.array(
         [
             v1[1] * v2[2] - v1[2] * v2[1],
@@ -127,7 +135,7 @@ def quaternion_from_angle_axis(
 
     Returns
     -------
-    List[float]
+    list[float]
         Gives back a quaternion from the angle and axis
     """
     if not axis_normalized:
@@ -384,7 +392,7 @@ def normalize_along_axis(array: np.ndarray, axis: np.ndarray) -> np.ndarray:
     return array
 
 
-def get_unit_normal(v1: Vector3, v2: Vector3, tol: float = 1e-6) -> Vector3:
+def get_unit_normal(v1: Vector3D, v2: Vector3D, tol: float = 1e-6) -> Vector3D:
     """Gets the unit normal of the vectors.
 
     Parameters
@@ -669,8 +677,9 @@ def shoelace_direction(x_y: np.ndarray) -> str:
 
 
 def cross2d(
-    a: Sequence[Vector] | Vector, b: Sequence[Vector] | Vector
-) -> Sequence[float] | float:
+    a: Vector2D | Vector2D_Array,
+    b: Vector2D | Vector2D_Array,
+) -> ManimFloat | npt.NDArray[ManimFloat]:
     """Compute the determinant(s) of the passed
     vector (sequences).
 

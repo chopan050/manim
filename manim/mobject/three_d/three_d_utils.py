@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from manim.typing import Point3D, Vector
 
 if TYPE_CHECKING:
-    from manim.typing import Point3D, Vector
+    from manim.typing import Point3D, Vector3D
 
 
 def get_3d_vmob_gradient_start_and_end_points(vmob) -> tuple[Point3D, Point3D]:
@@ -55,7 +55,7 @@ def get_3d_vmob_end_corner(vmob) -> Point3D:
     return vmob.points[get_3d_vmob_end_corner_index(vmob)]
 
 
-def get_3d_vmob_unit_normal(vmob, point_index: int) -> Vector:
+def get_3d_vmob_unit_normal(vmob, point_index: int) -> Vector3D:
     n_points = vmob.get_num_points()
     if len(vmob.get_anchors()) <= 2:
         return UP
@@ -71,9 +71,9 @@ def get_3d_vmob_unit_normal(vmob, point_index: int) -> Vector:
     return unit_normal
 
 
-def get_3d_vmob_start_corner_unit_normal(vmob) -> Vector:
+def get_3d_vmob_start_corner_unit_normal(vmob) -> Vector3D:
     return get_3d_vmob_unit_normal(vmob, get_3d_vmob_start_corner_index(vmob))
 
 
-def get_3d_vmob_end_corner_unit_normal(vmob) -> Vector:
+def get_3d_vmob_end_corner_unit_normal(vmob) -> Vector3D:
     return get_3d_vmob_unit_normal(vmob, get_3d_vmob_end_corner_index(vmob))

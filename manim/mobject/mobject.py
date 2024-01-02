@@ -56,8 +56,7 @@ if TYPE_CHECKING:
         PathFuncType,
         Point3D,
         Point3D_Array,
-        Vector,
-        Vector3,
+        Vector3D,
     )
 
     from ..animation.animation import Animation
@@ -239,7 +238,7 @@ class Mobject:
             cls.__init__ = cls._original__init__
 
     @property
-    def animate(self) -> _AnimationBuilder | T:
+    def animate(self: T) -> _AnimationBuilder | T:
         """Used to animate the application of any method of :code:`self`.
 
         Any method called on :code:`animate` is converted to an animation of applying
@@ -1155,7 +1154,7 @@ class Mobject:
         for mob in self.family_members_with_points():
             func(mob)
 
-    def shift(self, *vectors: Vector3) -> Self:
+    def shift(self, *vectors: Vector3D) -> Self:
         """Shift by the given vectors.
 
         Parameters
@@ -1227,14 +1226,14 @@ class Mobject:
         )
         return self
 
-    def rotate_about_origin(self, angle: float, axis: Vector3 = OUT, axes=[]) -> Self:
+    def rotate_about_origin(self, angle: float, axis: Vector3D = OUT, axes=[]) -> Self:
         """Rotates the :class:`~.Mobject` about the ORIGIN, which is at [0,0,0]."""
         return self.rotate(angle, axis, about_point=ORIGIN)
 
     def rotate(
         self,
         angle: float,
-        axis: Vector3 = OUT,
+        axis: Vector3D = OUT,
         about_point: Point3D | None = None,
         **kwargs,
     ) -> Self:
@@ -1245,7 +1244,7 @@ class Mobject:
         )
         return self
 
-    def flip(self, axis: Vector3 = UP, **kwargs) -> Self:
+    def flip(self, axis: Vector3D = UP, **kwargs) -> Self:
         """Flips/Mirrors an mobject about its center.
 
         Examples
@@ -1338,20 +1337,6 @@ class Mobject:
 
         return self.apply_function(R3_func)
 
-    def wag(
-        self, direction: Vector3 = RIGHT, axis: Vector3 = DOWN, wag_factor: float = 1.0
-    ) -> Self:
-        for mob in self.family_members_with_points():
-            alphas = np.dot(mob.points, np.transpose(axis))
-            alphas -= min(alphas)
-            alphas /= max(alphas)
-            alphas = alphas**wag_factor
-            mob.points += np.dot(
-                alphas.reshape((len(alphas), 1)),
-                np.array(direction).reshape((1, mob.dim)),
-            )
-        return self
-
     def reverse_points(self) -> Self:
         for mob in self.family_members_with_points():
             mob.apply_over_attr_arrays(lambda arr: np.array(list(reversed(arr))))
@@ -1405,7 +1390,7 @@ class Mobject:
         return self
 
     def align_on_border(
-        self, direction: Vector3, buff: float = DEFAULT_MOBJECT_TO_EDGE_BUFFER
+        self, direction: Vector3D, buff: float = DEFAULT_MOBJECT_TO_EDGE_BUFFER
     ) -> Self:
         """Direction just needs to be a vector pointing towards side or
         corner in the 2d plane.
@@ -1422,7 +1407,7 @@ class Mobject:
         return self
 
     def to_corner(
-        self, corner: Vector3 = DL, buff: float = DEFAULT_MOBJECT_TO_EDGE_BUFFER
+        self, corner: Vector3D = DL, buff: float = DEFAULT_MOBJECT_TO_EDGE_BUFFER
     ) -> Self:
         """Moves this :class:`~.Mobject` to the given corner of the screen.
 
@@ -1450,7 +1435,7 @@ class Mobject:
         return self.align_on_border(corner, buff)
 
     def to_edge(
-        self, edge: Vector3 = LEFT, buff: float = DEFAULT_MOBJECT_TO_EDGE_BUFFER
+        self, edge: Vector3D = LEFT, buff: float = DEFAULT_MOBJECT_TO_EDGE_BUFFER
     ) -> Self:
         """Moves this :class:`~.Mobject` to the given edge of the screen,
         without affecting its position in the other dimension.
@@ -1482,12 +1467,12 @@ class Mobject:
     def next_to(
         self,
         mobject_or_point: Mobject | Point3D,
-        direction: Vector3 = RIGHT,
+        direction: Vector3D = RIGHT,
         buff: float = DEFAULT_MOBJECT_TO_MOBJECT_BUFFER,
-        aligned_edge: Vector3 = ORIGIN,
+        aligned_edge: Vector3D = ORIGIN,
         submobject_to_align: Mobject | None = None,
         index_of_submobject_to_align: int | None = None,
-        coor_mask: Vector3 = np.array([1, 1, 1]),
+        coor_mask: Vector3D = np.array([1, 1, 1]),
     ) -> Self:
         """Move this :class:`~.Mobject` next to another's :class:`~.Mobject` or Point3D.
 
@@ -1679,22 +1664,22 @@ class Mobject:
 
         return self.rescale_to_fit(depth, 2, stretch=True, **kwargs)
 
-    def set_coord(self, value, dim: int, direction: Vector3 = ORIGIN) -> Self:
+    def set_coord(self, value, dim: int, direction: Vector3D = ORIGIN) -> Self:
         curr = self.get_coord(dim, direction)
         shift_vect = np.zeros(self.dim)
         shift_vect[dim] = value - curr
         self.shift(shift_vect)
         return self
 
-    def set_x(self, x: float, direction: Vector3 = ORIGIN) -> Self:
+    def set_x(self, x: float, direction: Vector3D = ORIGIN) -> Self:
         """Set x value of the center of the :class:`~.Mobject` (``int`` or ``float``)"""
         return self.set_coord(x, 0, direction)
 
-    def set_y(self, y: float, direction: Vector3 = ORIGIN) -> Self:
+    def set_y(self, y: float, direction: Vector3D = ORIGIN) -> Self:
         """Set y value of the center of the :class:`~.Mobject` (``int`` or ``float``)"""
         return self.set_coord(y, 1, direction)
 
-    def set_z(self, z: float, direction: Vector3 = ORIGIN) -> Self:
+    def set_z(self, z: float, direction: Vector3D = ORIGIN) -> Self:
         """Set z value of the center of the :class:`~.Mobject` (``int`` or ``float``)"""
         return self.set_coord(z, 2, direction)
 
@@ -1707,8 +1692,8 @@ class Mobject:
     def move_to(
         self,
         point_or_mobject: Point3D | Mobject,
-        aligned_edge: Vector3 = ORIGIN,
-        coor_mask: Vector3 = np.array([1, 1, 1]),
+        aligned_edge: Vector3D = ORIGIN,
+        coor_mask: Vector3D = np.array([1, 1, 1]),
     ) -> Self:
         """Move center of the :class:`~.Mobject` to certain Point3D."""
         if isinstance(point_or_mobject, Mobject):
@@ -2013,7 +1998,7 @@ class Mobject:
         else:
             return np.max(values)
 
-    def get_critical_point(self, direction: Vector3) -> Point3D:
+    def get_critical_point(self, direction: Vector3D) -> Point3D:
         """Picture a box bounding the :class:`~.Mobject`.  Such a box has
         9 'critical points': 4 corners, 4 edge center, the
         center. This returns one of them, along the given direction.
@@ -2042,11 +2027,11 @@ class Mobject:
 
     # Pseudonyms for more general get_critical_point method
 
-    def get_edge_center(self, direction: Vector3) -> Point3D:
+    def get_edge_center(self, direction: Vector3D) -> Point3D:
         """Get edge Point3Ds for certain direction."""
         return self.get_critical_point(direction)
 
-    def get_corner(self, direction: Vector3) -> Point3D:
+    def get_corner(self, direction: Vector3D) -> Point3D:
         """Get corner Point3Ds for certain direction."""
         return self.get_critical_point(direction)
 
@@ -2057,7 +2042,7 @@ class Mobject:
     def get_center_of_mass(self) -> Point3D:
         return np.apply_along_axis(np.mean, 0, self.get_all_points())
 
-    def get_boundary_point(self, direction: Vector3) -> Point3D:
+    def get_boundary_point(self, direction: Vector3D) -> Point3D:
         all_points = self.get_points_defining_boundary()
         index = np.argmax(np.dot(all_points, np.array(direction).T))
         return all_points[index]
@@ -2116,19 +2101,19 @@ class Mobject:
             dim,
         ) - self.reduce_across_dimension(min, dim)
 
-    def get_coord(self, dim: int, direction: Vector3 = ORIGIN):
+    def get_coord(self, dim: int, direction: Vector3D = ORIGIN):
         """Meant to generalize ``get_x``, ``get_y`` and ``get_z``"""
         return self.get_extremum_along_dim(dim=dim, key=direction[dim])
 
-    def get_x(self, direction: Vector3 = ORIGIN) -> ManimFloat:
+    def get_x(self, direction: Vector3D = ORIGIN) -> ManimFloat:
         """Returns x Point3D of the center of the :class:`~.Mobject` as ``float``"""
         return self.get_coord(0, direction)
 
-    def get_y(self, direction: Vector3 = ORIGIN) -> ManimFloat:
+    def get_y(self, direction: Vector3D = ORIGIN) -> ManimFloat:
         """Returns y Point3D of the center of the :class:`~.Mobject` as ``float``"""
         return self.get_coord(1, direction)
 
-    def get_z(self, direction: Vector3 = ORIGIN) -> ManimFloat:
+    def get_z(self, direction: Vector3D = ORIGIN) -> ManimFloat:
         """Returns z Point3D of the center of the :class:`~.Mobject` as ``float``"""
         return self.get_coord(2, direction)
 
@@ -2199,7 +2184,7 @@ class Mobject:
         return self.match_dim_size(mobject, 2, **kwargs)
 
     def match_coord(
-        self, mobject: Mobject, dim: int, direction: Vector3 = ORIGIN
+        self, mobject: Mobject, dim: int, direction: Vector3D = ORIGIN
     ) -> Self:
         """Match the Point3Ds with the Point3Ds of another :class:`~.Mobject`."""
         return self.set_coord(
@@ -2223,7 +2208,7 @@ class Mobject:
     def align_to(
         self,
         mobject_or_point: Mobject | Point3D,
-        direction: Vector3 = ORIGIN,
+        direction: Vector3D = ORIGIN,
     ) -> Self:
         """Aligns mobject to another :class:`~.Mobject` in a certain direction.
 
@@ -2278,7 +2263,7 @@ class Mobject:
 
     def arrange(
         self,
-        direction: Vector3 = RIGHT,
+        direction: Vector3D = RIGHT,
         buff: float = DEFAULT_MOBJECT_TO_MOBJECT_BUFFER,
         center: bool = True,
         **kwargs,
@@ -2311,7 +2296,7 @@ class Mobject:
         rows: int | None = None,
         cols: int | None = None,
         buff: float | tuple[float, float] = MED_SMALL_BUFF,
-        cell_alignment: Vector3 = ORIGIN,
+        cell_alignment: Vector3D = ORIGIN,
         row_alignments: str | None = None,  # "ucd"
         col_alignments: str | None = None,  # "lcr"
         row_heights: Iterable[float | None] | None = None,
