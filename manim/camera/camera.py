@@ -692,12 +692,10 @@ class Camera:
         points = self.transform_points_pre_display(vmobject, points)
         # TODO, shouldn't this be handled in transform_points_pre_display?
         # points = points - self.get_frame_center()
-        if len(points) == 0:
-            return
 
         flat_quads = points[:, :2].reshape(-1, 8)
-        starts = flat_quads[:, :2]
-        triplets = flat_quads[:, 2:]
+        starts = flat_quads[:, :2].copy()
+        triplets = flat_quads[:, 2:].copy()
         split_indices = (
             vmobject.get_subpath_split_indices(
                 n_dims=2,
@@ -709,10 +707,9 @@ class Camera:
         ctx.new_path()
         for start_i, end_i in split_indices:
             ctx.move_to(*starts[start_i])
-            [ctx.curve_to(*triplet) for triplet in triplets[start_i:end_i]]
-            if vmobject.consider_points_equals_2d(
-                starts[start_i], triplets[end_i - 1, -2:]
-            ):
+            for triplet in triplets[start_i:end_i]:
+                ctx.curve_to(*triplet)
+            if vmobject.consider_points_equals_2d(starts[start_i], triplet[-2:]):
                 ctx.close_path()
         return self
 

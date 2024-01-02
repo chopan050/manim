@@ -42,7 +42,7 @@ from ...constants import *
 from ...mobject.mobject import Mobject
 from ...utils.bezier import (
     bezier,
-    get_smooth_handle_points,
+    get_smooth_cubic_bezier_handle_points,
     integer_interpolate,
     interpolate,
     partial_bezier_points,
@@ -1037,7 +1037,7 @@ class VMobject(Mobject):
                     anchors = np.empty(((end - start) // nppcc + 1, submob.dim))
                     anchors[:-1] = submob.points[start:end:nppcc]
                     anchors[-1] = submob.points[end - 1]
-                    h1, h2 = get_smooth_handle_points(anchors)
+                    h1, h2 = get_smooth_cubic_bezier_handle_points(anchors)
                     submob.points[start + 1 : end : nppcc] = h1
                     submob.points[start + 2 : end : nppcc] = h2
         return self
