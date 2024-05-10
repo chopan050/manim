@@ -35,21 +35,24 @@ def tex_to_svg_file(
     environment: str | None = None,
     tex_template: TexTemplate | None = None,
 ):
-    """Takes a tex expression and returns the svg version of the compiled tex
+    """Takes a tex expression and returns the SVG version of the compiled TeX.
 
     Parameters
     ----------
     expression
-        String containing the TeX expression to be rendered, e.g. ``\\sqrt{2}`` or ``foo``
+        String containing the TeX expression to be rendered, e.g. ``\\sqrt{2}``
+        or ``foo``.
     environment
-        The string containing the environment in which the expression should be typeset, e.g. ``align*``
+        The string containing the environment in which the expression should be
+        typeset, e.g. ``align*``.
     tex_template
-        Template class used to typesetting. If not set, use default template set via `config["tex_template"]`
+        Template class used to typesetting. If not set, use the default
+        template set via `config["tex_template"]`.
 
     Returns
     -------
     :class:`Path`
-        Path to generated SVG file.
+        Path to the generated SVG file.
     """
     if tex_template is None:
         tex_template = config["tex_template"]
