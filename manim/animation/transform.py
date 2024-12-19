@@ -44,7 +44,7 @@ from ..constants import (
     OUT,
     RendererType,
 )
-from ..mobject.mobject import Group, Mobject
+from ..mobject.mobject import Group, MethodTuple, Mobject
 from ..utils.paths import path_along_arc, path_along_circles
 from ..utils.rate_functions import smooth, squish_rate_func
 
@@ -434,7 +434,7 @@ class MoveToTarget(Transform):
 
 
 class _MethodAnimation(MoveToTarget):
-    def __init__(self, mobject, methods):
+    def __init__(self, mobject: Mobject, methods: Iterable[MethodTuple]) -> None:
         self.methods = methods
         super().__init__(mobject)
 

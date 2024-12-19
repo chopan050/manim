@@ -69,6 +69,7 @@ __all__ = [
     "RowVector",
     "ColVector",
     "MatrixMN",
+    "Matrix3x3",
     "Zeros",
     "QuadraticBezierPoints",
     "QuadraticBezierPointsLike",
@@ -492,6 +493,14 @@ MatrixMN: TypeAlias = npt.NDArray[PointDType]
 A matrix: ``[[float, ...], [float, ...], ...]``.
 """
 
+Matrix3x3: TypeAlias = npt.NDArray[PointDType]
+"""``shape: (M, N)``
+
+A 3x3 matrix: ``[[float, float, float], [float, float, float], [float, float, float]]``.
+It represents a linear map which transforms a :class:`Point3D` into another
+:class:`Point3D`.
+"""
+
 Zeros: TypeAlias = MatrixMN
 """``shape: (M, N)``
 
@@ -824,7 +833,7 @@ FunctionOverride: TypeAlias = Callable
 :class:`~.Mobject`.
 """
 
-PathFuncType: TypeAlias = Callable[[Point3DLike, Point3DLike, float], Point3DLike]
+PathFuncType: TypeAlias = Callable[[Point3D, Point3D, float], Point3D]
 """Function mapping two :class:`Point3D` objects and an alpha value to a new
 :class:`Point3D`.
 """

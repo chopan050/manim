@@ -14,9 +14,9 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ..constants import OUT
-from ..utils.bezier import interpolate
-from ..utils.space_ops import rotation_matrix
+from manim.constants import OUT
+from manim.utils.bezier import interpolate
+from manim.utils.space_ops import rotation_matrix
 
 if TYPE_CHECKING:
     from manim.typing import PathFuncType, Vector3D
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 STRAIGHT_PATH_THRESHOLD = 0.01
 
 
-def straight_path():
+def straight_path() -> PathFuncType:
     """Simplest path function. Each point in a set goes in a straight path toward its destination.
 
     Examples
