@@ -558,7 +558,7 @@ A matrix: ``[[float, ...], [float, ...], ...]``.
 """
 
 Matrix3x3: TypeAlias = npt.NDArray[PointDType]
-"""``shape: (M, N)``
+"""``shape: (3, 3)``
 
 A 3x3 matrix: ``[[float, float, float], [float, float, float], [float, float, float]]``.
 It represents a linear map which transforms a :class:`Point3D` into another
@@ -897,9 +897,9 @@ FunctionOverride: TypeAlias = Callable
 :class:`~.Mobject`.
 """
 
-PathFuncType: TypeAlias = Callable[[Point3D, Point3D, float], Point3D]
-"""Function mapping two :class:`Point3D` objects and an alpha value to a new
-:class:`Point3D`.
+PathFuncType: TypeAlias = Callable[[Point3D_Array, Point3D_Array, float], Point3D_Array]
+"""Function which interpolates two :class:`Point3D_Array` objects given an alpha value,
+returning a new :class:`Point3D_Array`.
 """
 
 MappingFunction: TypeAlias = Callable[[Point3D], Point3D]
