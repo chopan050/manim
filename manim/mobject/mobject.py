@@ -75,7 +75,6 @@ if TYPE_CHECKING:
 
 Args: TypeAlias = tuple[Any, ...]
 Kwargs: TypeAlias = dict[str, Any]
-MethodTuple: TypeAlias = tuple[types.MethodType, Args, Kwargs]
 
 
 class ApplyPointsFunctionKwargs(TypedDict, total=False):
