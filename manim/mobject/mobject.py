@@ -12,11 +12,11 @@ import math
 import operator as op
 import random
 import sys
-import types
 import warnings
 from collections.abc import Iterable, Sequence
 from functools import partialmethod, reduce
 from pathlib import Path
+from types import MethodType
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -53,6 +53,7 @@ if TYPE_CHECKING:
     from PIL import Image
     from typing_extensions import Self, TypeAlias, Unpack
 
+    from manim.camera.camera import Camera
     from manim.typing import (
         FunctionOverride,
         ManimFloat,
@@ -64,6 +65,7 @@ if TYPE_CHECKING:
         Point3D_Array,
         Point3DLike,
         Point3DLike_Array,
+        Vector3D,
         Vector3DLike,
     )
 
@@ -73,13 +75,10 @@ if TYPE_CHECKING:
     NonTimeBasedUpdater: TypeAlias = Callable[["Mobject"], object]
     Updater: TypeAlias = NonTimeBasedUpdater | TimeBasedUpdater
 
-Args: TypeAlias = tuple[Any, ...]
-Kwargs: TypeAlias = dict[str, Any]
-
 
 class ApplyPointsFunctionKwargs(TypedDict, total=False):
     about_point: Point3DLike | None
-    about_edge: Vector3D | None
+    about_edge: Vector3DLike | None
 
 
 class AlignOnBorderKwargs(TypedDict, total=False):
@@ -107,6 +106,7 @@ class Mobject:
     """
 
     animation_overrides: dict[type[Animation], FunctionOverride] = {}
+    _original__init__: Callable[..., None]
 
     @classmethod
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -696,7 +696,7 @@ class Mobject:
 
         return self
 
-    def __getattr__(self, attr: str) -> types.MethodType:
+    def __getattr__(self, attr: str) -> MethodType:
         # Add automatic compatibility layer
         # between properties and get_* and set_*
         # methods.
@@ -719,7 +719,7 @@ class Mobject:
                 return getattr(self, to_get)
 
             # Return a bound method
-            return types.MethodType(getter, self)
+            return MethodType(getter, self)
 
         if attr.startswith("set_"):
             # Remove the "set_" prefix
@@ -738,7 +738,7 @@ class Mobject:
                 return self
 
             # Return a bound method
-            return types.MethodType(setter, self)
+            return MethodType(setter, self)
 
         # Unhandled attribute, therefore error
         raise AttributeError(f"{type(self).__name__} object has no attribute '{attr}'")
@@ -2394,15 +2394,15 @@ class Mobject:
             direction=direction,
         )
 
-    def match_x(self, mobject: Mobject, direction: Vector3D = ORIGIN) -> Self:
+    def match_x(self, mobject: Mobject, direction: Vector3DLike = ORIGIN) -> Self:
         """Match x coord. to the x coord. of another :class:`~.Mobject`."""
         return self.match_coord(mobject, 0, direction)
 
-    def match_y(self, mobject: Mobject, direction: Vector3D = ORIGIN) -> Self:
+    def match_y(self, mobject: Mobject, direction: Vector3DLike = ORIGIN) -> Self:
         """Match y coord. to the x coord. of another :class:`~.Mobject`."""
         return self.match_coord(mobject, 1, direction)
 
-    def match_z(self, mobject: Mobject, direction: Vector3D = ORIGIN) -> Self:
+    def match_z(self, mobject: Mobject, direction: Vector3DLike = ORIGIN) -> Self:
         """Match z coord. to the x coord. of another :class:`~.Mobject`."""
         return self.match_coord(mobject, 2, direction)
 
@@ -3035,7 +3035,7 @@ class Mobject:
         self.submobjects = new_submobs
         return self
 
-    def repeat_submobject(self, submob: Mobject) -> Mobject:
+    def repeat_submobject(self, submob: Mobject) -> Self:
         return submob.copy()
 
     def interpolate(
@@ -3354,7 +3354,7 @@ class _AnimationBuilder:
         self.mobject = mobject
         self.mobject.generate_target()
 
-        self.overridden_animation: types.MethodType | None = None
+        self.overridden_animation: MethodType | None = None
         self.is_chaining = False
         self.methods: list[MethodWithArgs] = []
 
@@ -3373,8 +3373,8 @@ class _AnimationBuilder:
 
         return self
 
-    def __getattr__(self, method_name: str) -> types.MethodType:
-        method: types.MethodType = getattr(self.mobject.target, method_name)
+    def __getattr__(self, method_name: str) -> MethodType:
+        method: MethodType = getattr(self.mobject.target, method_name)
         has_overridden_animation = hasattr(method, "_override_animate")
 
         if (self.is_chaining and has_overridden_animation) or self.overridden_animation:
@@ -3416,11 +3416,11 @@ class _AnimationBuilder:
         return anim
 
 
-OverrideAnimateMethod: TypeAlias = types.MethodType
+OverrideAnimateMethod: TypeAlias = MethodType
 
 
 def override_animate(
-    method: types.MethodType,
+    method: MethodType,
 ) -> Callable[[OverrideAnimateMethod], OverrideAnimateMethod]:
     r"""Decorator for overriding method animations.
 
