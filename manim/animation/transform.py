@@ -439,8 +439,8 @@ class MoveToTarget(Transform):
 
 
 class _MethodAnimation(MoveToTarget):
-    def __init__(self, mobject: Mobject, methods: Iterable[MethodWithArgs]) -> None:
-        self.methods = list(methods)
+    def __init__(self, mobject: Mobject, methods: list[MethodWithArgs]) -> None:
+        self.methods = methods
         super().__init__(mobject)
 
     def finish(self) -> None:
