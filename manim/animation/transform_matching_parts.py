@@ -96,7 +96,6 @@ class TransformMatchingAbstractBase(AnimationGroup):
         # target_map
         transform_source = group_type()
         transform_target = group_type()
-        kwargs["final_alpha_value"] = 0
         for key in set(source_map).intersection(target_map):
             transform_source.add(source_map[key])
             transform_target.add(target_map[key])
@@ -225,8 +224,9 @@ class TransformMatchingShapes(TransformMatchingAbstractBase):
     def get_mobject_key(mobject: Mobject) -> int:
         mobject.save_state()
         mobject.center()
-        mobject.set_height(1)
-        result = hash(np.round(mobject.points, 3).tobytes())
+        mobject.set(height=1)
+        rounded_points = np.round(mobject.points, 3) + 0.0
+        result = hash(rounded_points.tobytes())
         mobject.restore()
         return result
 

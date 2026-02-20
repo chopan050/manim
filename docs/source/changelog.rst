@@ -2,9 +2,16 @@
 Changelog
 #########
 
+This page contains a list of changes made between releases.
 
 .. toctree::
+    :maxdepth: 1
 
+    changelog/0.19.2-changelog
+    changelog/0.19.1-changelog
+    changelog/0.19.0-changelog
+    changelog/0.18.1-changelog
+    changelog/0.18.0.post0-changelog
     changelog/0.18.0-changelog
     changelog/0.17.3-changelog
     changelog/0.17.2-changelog

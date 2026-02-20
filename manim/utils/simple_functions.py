@@ -10,10 +10,8 @@ __all__ = [
 ]
 
 
-import inspect
-from functools import lru_cache
-from types import MappingProxyType
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
 import numpy as np
 
@@ -22,12 +20,12 @@ if TYPE_CHECKING:
 
 
 def binary_search(
-    function: Callable[[int | float], int | float],
-    target: int | float,
-    lower_bound: int | float,
-    upper_bound: int | float,
-    tolerance: int | float = 1e-4,
-) -> int | float | None:
+    function: Callable[[float], float],
+    target: float,
+    lower_bound: float,
+    upper_bound: float,
+    tolerance: float = 1e-4,
+) -> float | None:
     """Searches for a value in a range by repeatedly dividing the range in half.
 
     To be more precise, performs numerical binary search to determine the
@@ -44,10 +42,10 @@ def binary_search(
     ::
 
         >>> solution = binary_search(lambda x: x**2 + 3*x + 1, 11, 0, 5)
-        >>> abs(solution - 2) < 1e-4
+        >>> bool(abs(solution - 2) < 1e-4)
         True
         >>> solution = binary_search(lambda x: x**2 + 3*x + 1, 11, 0, 5, tolerance=0.01)
-        >>> abs(solution - 2) < 0.01
+        >>> bool(abs(solution - 2) < 0.01)
         True
 
     Searching in the interval :math:`[0, 5]` for a target value of :math:`71`
@@ -58,7 +56,7 @@ def binary_search(
     """
     lh = lower_bound
     rh = upper_bound
-    mh = np.mean(np.array([lh, rh]))
+    mh: float = np.mean(np.array([lh, rh]))
     while abs(rh - lh) > tolerance:
         mh = np.mean(np.array([lh, rh]))
         lx, mx, rx = (function(h) for h in (lh, mh, rh))
@@ -78,29 +76,6 @@ def binary_search(
             return None
 
     return mh
-
-
-def clip(a, min_a, max_a):
-    """Clips ``a`` to the interval [``min_a``, ``max_a``].
-
-    Accepts any comparable objects (i.e. those that support <, >).
-    Returns ``a`` if it is between ``min_a`` and ``max_a``.
-    Otherwise, whichever of ``min_a`` and ``max_a`` is closest.
-
-    Examples
-    --------
-    ::
-
-        >>> clip(15, 11, 20)
-        15
-        >>> clip('a', 'h', 'k')
-        'h'
-    """
-    if a < min_a:
-        return min_a
-    elif a > max_a:
-        return max_a
-    return a
 
 
 # Pascal triangle for combinatorial coefficients
@@ -152,6 +127,56 @@ def get_pascal_triangle(n: int) -> MatrixMN:
     return PASCAL_MEMO
 
 
+def choose(n: int, k: int) -> int:
+    r"""The binomial coefficient n choose k.
+
+    :math:`\binom{n}{k}` describes the number of possible choices of
+    :math:`k` elements from a set of :math:`n` elements.
+
+    References
+    ----------
+    - https://en.wikipedia.org/wiki/Combination
+    - https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.comb.html
+    """
+    if k < 0 or k > n:
+        return 0
+    triangle = get_pascal_triangle(n)
+    n_choose_k: int = triangle[n, k]
+    return n_choose_k
+
+
+class Comparable(Protocol):
+    def __lt__(self, other: Any) -> bool: ...
+
+    def __gt__(self, other: Any) -> bool: ...
+
+
+ComparableT = TypeVar("ComparableT", bound=Comparable)
+
+
+def clip(a: ComparableT, min_a: ComparableT, max_a: ComparableT) -> ComparableT:
+    """Clips ``a`` to the interval [``min_a``, ``max_a``].
+
+    Accepts any comparable objects (i.e. those that support <, >).
+    Returns ``a`` if it is between ``min_a`` and ``max_a``.
+    Otherwise, whichever of ``min_a`` and ``max_a`` is closest.
+
+    Examples
+    --------
+    ::
+
+        >>> clip(15, 11, 20)
+        15
+        >>> clip('a', 'h', 'k')
+        'h'
+    """
+    if a < min_a:
+        return min_a
+    elif a > max_a:
+        return max_a
+    return a
+
+
 def sigmoid(x: float) -> float:
     r"""Returns the output of the logistic function.
 
@@ -163,4 +188,5 @@ def sigmoid(x: float) -> float:
     - https://en.wikipedia.org/wiki/Sigmoid_function
     - https://en.wikipedia.org/wiki/Logistic_function
     """
-    return 1.0 / (1 + np.exp(-x))
+    value: float = 1.0 / (1 + np.exp(-x))
+    return value
